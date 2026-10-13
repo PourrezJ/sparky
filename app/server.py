@@ -174,10 +174,24 @@ def _switch(mid):
         switch.update(phase="error", error=str(e))
 
 
+def voice_model():
+    """Modele de dictee choisi (ou le recommande / le premier installe), et s'il est pret."""
+    voices = [m for m in catalog.CATALOG if m["kind"] == "voice"]
+    ok = [m for m in voices if catalog.installed(m)]
+    rec = syscheck.current().get("recommended", {}).get("voice")
+    pick = next((m for m in ok if m["id"] == harness.SETTINGS.get("voice")), None) or \
+        next((m for m in ok if m["id"] == rec), None) or (ok[0] if ok else catalog.BY_ID.get(rec) or voices[0])
+    return pick, catalog.installed(pick)
+
+
 def use_model(mid):
     m = catalog.BY_ID.get(mid)
     if not m or not catalog.installed(m) or switch["phase"] == "loading":
         return False
+    if m["kind"] == "voice":  # rien a charger : Whisper se charge a la premiere dictee
+        harness.SETTINGS["voice"] = mid
+        harness.save_settings()
+        return True
     switch.update(kind=m["kind"], id=mid, label=m["label"], phase="loading", steps=[], t0=time.time(), eta=0, error="")
     threading.Thread(target=_switch, args=(mid,), daemon=True).start()
     return True
@@ -292,10 +306,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             known = {m["ckpt"] for m in catalog.CATALOG if m["kind"] == "image"}
             others = [c for c in checkpoints() if c not in known and not catalog.blocked(c)]
             return self.send(200, {"settings": harness.SETTINGS, "catalog": catalog.listing(harness.SETTINGS),
-                                   "otherCheckpoints": others, "active": {"llm": llm_state["name"]},
+                                   "otherCheckpoints": others, "active": {"llm": llm_state["name"], "voice": voice_model()[0]["id"]},
                                    "syscheck": syscheck.current(), "onboarded": bool(harness.SETTINGS.get("onboarded"))})
         if path == "/api/syscheck":
             return self.send(200, syscheck.current())
+        if path == "/api/voice":
+            m, ready = voice_model()
+            return self.send(200, {"id": m["id"], "label": m["label"], "size_gb": m["size_gb"], "ready": ready,
+                                   "job": catalog.jobs.get(m["id"])})
         if path == "/api/switch":
             return self.send(200, switch | {"elapsed": round(time.time() - switch["t0"], 1) if switch["t0"] else 0})
         if path == "/api/hf/search":
@@ -311,6 +329,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send(404, {"error": "introuvable"})
 
     def do_POST(self):
+        if self.path.startswith("/api/transcribe"):  # corps = WAV brut enregistre par l'interface
+            data = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            m, ready = voice_model()
+            if not ready:
+                return self.send(409, {"error": "dictée vocale non installée", "id": m["id"]})
+            try:
+                import stt
+                t0 = time.time()
+                text = stt.transcribe(data, m["id"], self.query().get("lang") or None)
+                harness.record_speed("img:" + m["id"], (time.time() - t0) * 10 / max(1.0, len(data) / 32000))
+                return self.send(200, {"text": text})
+            except Exception as e:
+                return self.send(500, {"error": f"transcription impossible : {e}"})
         b = self.body()
         if self.path == "/api/new":
             s = harness.Session(ephemeral=bool(b.get("ephemeral")))

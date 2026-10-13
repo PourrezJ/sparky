@@ -84,6 +84,18 @@ def klein():
             "desc": "Images en ~3 s : rapide, texte lisible, retouche par instruction."}
 
 
+WHISPER_FILES = ("config.json", "generation_config.json", "preprocessor_config.json", "tokenizer.json", "tokenizer_config.json",
+                 "vocab.json", "merges.txt", "normalizer.json", "added_tokens.json", "special_tokens_map.json", "model.safetensors")
+
+
+def voice(id, label, quality, repo, size_gb, gpu_secs, cpu_secs, desc=""):
+    """Dictee vocale hors ligne (Whisper, via transformers). *_secs : temps pour 10 s de parole."""
+    d = os.path.join(config.VOICE_DIR, repo.split("/")[-1])
+    return {"id": id, "kind": "voice", "label": label, "quality": quality, "repo": repo, "desc": desc,
+            "files": [(repo, f, os.path.join(d, f)) for f in WHISPER_FILES], "dir": d, "size_gb": size_gb,
+            "gpu_secs": gpu_secs, "cpu_secs": cpu_secs, "ckpt": id}
+
+
 # vitesses (ref_tps) et qualites : benchmark local RTX Spark (oct. 2026), GPQA Diamond publie
 U = "unsloth/"
 CATALOG = [
@@ -107,6 +119,10 @@ CATALOG = [
         ref_tps=66, desc="Minuscule mais solide (GPQA 76) ; très rapide, tourne même sans GPU."),
     llm("gemmae4b", "Gemma 4 E4B", 2, U + "gemma-4-e4b-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf", "mmproj-F16.gguf", 5.5,
         ref_tps=50, desc="Google. Pour les petites machines."),
+    voice("whisper-turbo", "Whisper large-v3 turbo", 5, "openai/whisper-large-v3-turbo", 1.6, 1, 25,
+          desc="Dictée vocale hors ligne, très précise (99 langues)."),
+    voice("whisper-base", "Whisper base", 3, "openai/whisper-base", 0.3, 0.5, 3,
+          desc="Dictée vocale légère, pour les machines sans GPU."),
     klein(),
     qwen_image("qwen21", "Qwen-Image 2.1", 5, desc="Le plus réaliste (~35 s par image), retouche par instruction."),
     ckpt("juggernaut", "Juggernaut XL v9", 4, "RunDiffusion/Juggernaut-XL-v9", "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
@@ -154,6 +170,9 @@ def indicators(m, measured=None, sysinfo=None):
         need = m["size_gb"] + 2.5  # modele + contexte
         fit = 2 if need + img <= mem else 1 if need <= mem else 0
         return {"speed": speed, "fit": fit, "tps": round(tps), "measured": bool(measured)}
+    if m["kind"] == "voice":
+        secs = measured or (m["gpu_secs"] if a["mode"] != "cpu" else m["cpu_secs"])
+        return {"speed": 3 if secs <= 3 else 2 if secs <= 10 else 1, "fit": 2, "secs": round(secs, 1), "measured": bool(measured)}
     secs = measured or m.get("est_secs", 15) * (230 / max(bw, 60)) ** 0.7
     fit = 2 if m["size_gb"] + 6 <= mem else 1 if m["size_gb"] <= mem + 2 else 0
     return {"speed": 3 if secs <= 12 else 2 if secs <= 30 else 1, "fit": fit, "secs": round(secs), "measured": bool(measured)}

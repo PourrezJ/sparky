@@ -100,6 +100,7 @@ def recommend(sysinfo):
         out["image"] = pick["id"] if pick else None
     else:
         notes.append("Pas de GPU NVIDIA compatible : la génération d'images serait très lente, elle n'est pas recommandée.")
+    out["voice"] = "whisper-turbo" if a["mode"] != "cpu" else "whisper-base"  # dictee vocale
     if a["mode"] == "cpu":
         notes.append("Sans GPU NVIDIA, l'assistant tourne sur le processeur : choisis un petit modèle.")
     need = sum(catalog.BY_ID[i]["size_gb"] for i in out.values() if i)

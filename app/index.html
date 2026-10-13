@@ -226,6 +226,17 @@ table.lt{width:100%;border-collapse:collapse;font-size:14px}
 #swS i{width:14px;text-align:center;font-style:normal}
 #swS .ok i{color:var(--ok)}#swS .err{color:var(--bad)}#swS .run{color:var(--txt)}
 @media(max-width:760px){#side{position:fixed;inset:0 auto 0 0;z-index:11;box-shadow:0 0 40px #000}}
+/* ---- dictée vocale */
+#rec{display:none;flex:1;align-items:center;gap:10px;min-width:0;height:38px}
+#box.recording #rec{display:flex}
+#box.recording #msg,#box.recording #clip,#box.recording #mic,#box.recording #send{display:none}
+#wave{flex:1;height:34px;min-width:0}
+#recT{font:12.5px ui-monospace,Consolas,monospace;color:var(--mut);min-width:34px}
+#recStop{width:36px;height:36px;border-radius:50%;background:#fff;display:grid;place-items:center;flex:none}
+#recStop .sq{width:12px;height:12px;border-radius:3px;background:#000}
+#recStop.busy{cursor:default}
+#recStop.busy .sq{width:16px;height:16px;border-radius:50%;background:none;border:2.5px solid #000;border-right-color:transparent;animation:r .8s linear infinite}
+#mic.dl{color:var(--warn)}
 /* ---- markdown des réponses */
 .a>.t h4{font-size:15.5px;margin:10px 0 2px;font-weight:650;display:inline-block}
 .a>.t code.ic2{background:#2c2c2c;border-radius:5px;padding:1px 5px;font:13px ui-monospace,Consolas,monospace}
@@ -342,7 +353,7 @@ body.artlive #artLive{display:flex}
       <button class="ib" id="libx" title="Fermer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="chips" id="flt">
-      <button data-f="all" class="on">Tous</button><button data-f="installed">Installés</button><button data-f="llm">Assistants</button><button data-f="image">Images</button><button data-f="rec">Recommandés</button>
+      <button data-f="all" class="on">Tous</button><button data-f="installed">Installés</button><button data-f="llm">Assistants</button><button data-f="image">Images</button><button data-f="voice">Voix</button><button data-f="rec">Recommandés</button>
     </div>
     <table class="lt"><thead><tr>
       <th data-s="label">Nom</th><th data-s="kind">Type</th><th data-s="size_gb" class="r">Taille</th>
@@ -362,6 +373,10 @@ body.artlive #artLive{display:flex}
         <button class="ib" id="clip" title="Joindre des images"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
         <input id="file" type="file" accept="image/*" multiple hidden>
         <textarea id="msg" rows="1" placeholder="Demande ce que tu veux"></textarea>
+        <div id="rec"><button class="ib" id="recX" title="Annuler"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+          <canvas id="wave"></canvas><span id="recT">0:00</span>
+          <button id="recStop" title="Arrêter et transcrire"><span class="sq"></span></button></div>
+        <button class="ib" id="mic" title="Dicter (hors ligne)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button id="send" title="Envoyer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
       </div>
     </div>
@@ -606,6 +621,51 @@ $('artDrag').onpointerdown=e=>{e.preventDefault();const ifr=$('artB').querySelec
   const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);if(ifr)ifr.style.pointerEvents=''};addEventListener('pointermove',mv);addEventListener('pointerup',up)};
 function resetArts(){ARTS={};ART=null;document.body.classList.remove('art','artlive')}
 
+// ---------- dictée vocale (Whisper hors ligne) : barres en direct, stop = transcription dans le champ
+let REC=null;
+const fmtT=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+async function voiceReady(){const v=await(await fetch('/api/voice')).json();if(v.ready)return true;
+  if(v.job&&v.job.state==='running'){alert('La dictée vocale est en cours de téléchargement ('+Math.floor(v.job.done/v.job.total*100)+' %).');return false}
+  if(!confirm('La dictée vocale fonctionne hors ligne avec '+v.label+' ('+v.size_gb+' Go à télécharger une seule fois).\nLe télécharger maintenant ?'))return false;
+  await fetch('/api/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:v.id})});voiceProgress();return false}
+async function voiceProgress(){const v=await(await fetch('/api/voice')).json(),mic=$('mic');
+  if(v.ready){mic.classList.remove('dl');mic.title='Dicter (hors ligne)';$('hint').textContent='Dictée vocale prête : clique sur le micro.';setTimeout(()=>$('hint').textContent=HINT,4000);return}
+  const j=v.job;if(j&&j.state==='error'){mic.classList.remove('dl');$('hint').textContent='Échec du téléchargement : '+j.error;return}
+  const pc=j&&j.total?Math.floor(j.done/j.total*100):0;mic.classList.add('dl');mic.title='Téléchargement '+pc+' %';$('hint').textContent='Téléchargement de la dictée vocale… '+pc+' %';setTimeout(voiceProgress,1500)}
+const HINT=$('hint').textContent;
+$('mic').onclick=async()=>{if(REC||!(await voiceReady()))return;
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
+  catch(e){alert('Micro inaccessible : '+e.message+'\nAutorise le micro pour cette page (icône à gauche de l’adresse).');return}
+  const ctx=new AudioContext(),src=ctx.createMediaStreamSource(stream),an=ctx.createAnalyser();an.fftSize=1024;src.connect(an);
+  const proc=ctx.createScriptProcessor(4096,1,1),chunks=[];proc.onaudioprocess=e=>{if(REC&&!REC.stopped)chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)))};
+  src.connect(proc);proc.connect(ctx.destination);
+  REC={stream,ctx,proc,an,chunks,t0:Date.now(),levels:[],stopped:false};$('box').classList.add('recording');drawWave()}
+function drawWave(){if(!REC)return;const c=$('wave'),r=c.getBoundingClientRect(),dpr=devicePixelRatio||1;
+  if(c.width!==Math.round(r.width*dpr)){c.width=Math.round(r.width*dpr);c.height=Math.round(r.height*dpr)}
+  const x=c.getContext('2d'),buf=new Float32Array(REC.an.fftSize);REC.an.getFloatTimeDomainData(buf);
+  let s=0;for(const v of buf)s+=v*v;REC.peak=Math.max(REC.peak||0,Math.min(1,Math.sqrt(s/buf.length)*5.5));
+  const bw=4*dpr,gap=3*dpr,n=Math.floor(c.width/(bw+gap)),now=Date.now();
+  if(!REC.stopped&&now-(REC.lastBar||0)>=60){REC.levels.push(REC.peak);REC.peak=0;REC.lastBar=now}  // une barre toutes les 60 ms
+  if(REC.levels.length>n)REC.levels.splice(0,REC.levels.length-n);
+  x.clearRect(0,0,c.width,c.height);const H=c.height;
+  REC.levels.forEach((v,i)=>{const h=Math.max(2*dpr,v*H*.92),X=c.width-(REC.levels.length-i)*(bw+gap);
+    x.fillStyle=REC.stopped?'#666':'rgba(140,124,240,'+(0.45+v*.55)+')';x.beginPath();x.roundRect(X,(H-h)/2,bw,h,bw/2);x.fill()});
+  if(!REC.stopped)$('recT').textContent=fmtT((Date.now()-REC.t0)/1000);requestAnimationFrame(drawWave)}
+function endRec(){REC.stopped=true;REC.proc.disconnect();REC.stream.getTracks().forEach(t=>t.stop());REC.ctx.close()}
+function wav16k(chunks,rate){let n=chunks.reduce((t,c)=>t+c.length,0);const all=new Float32Array(n);let o=0;for(const c of chunks){all.set(c,o);o+=c.length}
+  const k=rate/16000,m=Math.floor(n/k),pcm=new Int16Array(m);for(let i=0;i<m;i++){const v=all[Math.floor(i*k)];pcm[i]=Math.max(-1,Math.min(1,v))*32767}
+  const b=new ArrayBuffer(44+pcm.length*2),d=new DataView(b),w=(p,s)=>[...s].forEach((ch,i)=>d.setUint8(p+i,ch.charCodeAt(0)));
+  w(0,'RIFF');d.setUint32(4,36+pcm.length*2,true);w(8,'WAVE');w(12,'fmt ');d.setUint32(16,16,true);d.setUint16(20,1,true);d.setUint16(22,1,true);
+  d.setUint32(24,16000,true);d.setUint32(28,32000,true);d.setUint16(32,2,true);d.setUint16(34,16,true);w(36,'data');d.setUint32(40,pcm.length*2,true);
+  new Int16Array(b,44).set(pcm);return new Blob([b],{type:'audio/wav'})}
+$('recX').onclick=()=>{if(!REC||$('recStop').classList.contains('busy'))return;endRec();REC=null;$('box').classList.remove('recording')};
+$('recStop').onclick=async()=>{if(!REC||REC.stopped)return;const rate=REC.ctx.sampleRate;endRec();$('recStop').classList.add('busy');
+  try{const r=await fetch('/api/transcribe',{method:'POST',headers:{'Content-Type':'audio/wav'},body:wav16k(REC.chunks,rate)});const j=await r.json();
+    if(!r.ok)throw new Error(j.error);if(j.text){ta.value=(ta.value.trim()?ta.value.trimEnd()+' ':'')+j.text}}
+  catch(e){alert('Dictée : '+e.message)}
+  finally{$('recStop').classList.remove('busy');REC=null;$('box').classList.remove('recording');upd();ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length)}};
+addEventListener('keydown',e=>{if(!REC)return;if(e.key==='Escape')$('recX').click();else if(e.key==='Enter'){e.preventDefault();$('recStop').click()}});
+
 // ---------- pièces jointes
 function loadImg(src){return new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=src})}
 async function addFiles(files){for(const f of files){if(!f.type.startsWith('image/'))continue;const i=await loadImg(URL.createObjectURL(f));
@@ -651,6 +711,7 @@ const IC={
  mem:c=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 1v4M15 1v4M9 19v4M15 19v4M1 9h4M1 15h4M19 9h4M19 15h4"/></svg>',
  brain:c=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 0 0-5.6-1.5A3 3 0 0 0 4 8a3 3 0 0 0 0 5 3.5 3.5 0 0 0 4 5.5A3 3 0 0 0 12 19z"/><path d="M12 5a3 3 0 0 1 5.6-1.5A3 3 0 0 1 20 8a3 3 0 0 1 0 5 3.5 3.5 0 0 1-4 5.5A3 3 0 0 1 12 19z"/><path d="M12 5v14"/></svg>',
  eye:c=>'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+ mic:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
  chat:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
  img:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
  dl:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 20h16"/></svg>',
@@ -667,9 +728,9 @@ function extras(m){return (m.kind==='llm'&&m.think?'<span class="ic" title="peut
 function inds(m){return bolts(m)+stars(m)+memi(m)+extras(m)}
 
 let SYS=null,ONB=true;
-async function loadCat(){const r=await(await fetch('/api/settings')).json();CAT=r.catalog;SET=r.settings;SYS=r.syscheck;ONB=r.onboarded;ACTIVE={llm:r.settings.llm,ckpt:r.settings.ckpt};return r}
+async function loadCat(){const r=await(await fetch('/api/settings')).json();CAT=r.catalog;SET=r.settings;SYS=r.syscheck;ONB=r.onboarded;ACTIVE={llm:r.settings.llm,ckpt:r.settings.ckpt,voice:r.active.voice};return r}
 let ACTIVE={};
-const isActive=m=>m.kind==='llm'?m.id===ACTIVE.llm:m.ckpt===ACTIVE.ckpt;
+const isActive=m=>m.kind==='llm'?m.id===ACTIVE.llm:m.kind==='voice'?m.id===ACTIVE.voice:m.ckpt===ACTIVE.ckpt;
 const recTag=m=>m.recommended?'<span class="rec" title="recommandé pour ta machine">recommandé</span>':'';
 
 // ---------- niveau de réflexion
@@ -733,7 +794,7 @@ async function renderLib(fetchIt){if(fetchIt!==false)await loadCat();
   if(!L.length)tb.innerHTML='<tr><td colspan="7" class="mute">Aucun modèle installé ou connu ne correspond. Regarde sur Hugging Face plus bas.</td></tr>';
   L.forEach(m=>{const tr=el('tr');
     tr.append(el('td','nm',esc(m.label)+recTag(m)+'<small>'+esc(m.desc||m.repo||'')+'</small>'));
-    tr.append(el('td','','<span class="ty">'+(m.kind==='llm'?IC.chat+'assistant':IC.img+'image')+'</span>'));
+    tr.append(el('td','','<span class="ty">'+(m.kind==='llm'?IC.chat+'assistant':m.kind==='voice'?IC.mic+'voix':IC.img+'image')+'</span>'));
     tr.append(el('td','r',m.size_gb.toFixed(1)+' Go'));
     tr.append(el('td','',bolts(m)));tr.append(el('td','',stars(m)));tr.append(el('td','',memi(m)+extras(m)));
     const a=el('div','act'),j=m.job;
@@ -810,18 +871,18 @@ async function renderWelcome(){clearTimeout(welcTimer);await loadCat();const s=S
     +'<span style="color:var(--dim);font-size:12.5px">'+a.model_mem_gb.toFixed(0)+' Go utilisables pour les modèles</span></div>'
     +(s.notes||[]).map(n=>'<div class="note">'+esc(n)+'</div>').join('')
     +'<div class="mute" style="padding-bottom:0">Analysé le '+new Date(s.ts*1000).toLocaleString('fr-FR')+'</div>';
-  const recs=['llm','image'].map(k=>CAT.find(m=>m.id===s.recommended[k])).filter(Boolean);
+  const recs=['llm','image','voice'].map(k=>CAT.find(m=>m.id===s.recommended[k])).filter(Boolean);
   const box=$('wRec');box.innerHTML='<div class="recs">'+(recs.length?'':'<div class="mute">Aucun modèle recommandé pour cette machine.</div>')+recs.map(m=>{const j=m.job;
     const st=m.installed?'<span class="st ok">installé</span>':j&&j.state==='running'?'<span class="st">'+(j.total?Math.floor(j.done/j.total*100):0)+' % · '+(j.done/2**30).toFixed(1)+'/'+(j.total/2**30).toFixed(1)+' Go</span>'
       :j&&j.state==='error'?'<span class="st" style="color:var(--bad)">échec, réessaie</span>':'<span class="st">'+m.size_gb.toFixed(1)+' Go</span>';
-    return '<div class="rc"><span class="k">'+(m.kind==='llm'?IC.chat:IC.img)+'</span><div class="n"><b>'+esc(m.label)+'</b> <span class="ind">'+inds(m)+'</span><small>'
-      +(m.kind==='llm'?'Assistant · ':'Images · ')+esc(m.desc||'')+'</small></div>'+st+'</div>'}).join('')+'</div>';
+    return '<div class="rc"><span class="k">'+(m.kind==='llm'?IC.chat:m.kind==='voice'?IC.mic:IC.img)+'</span><div class="n"><b>'+esc(m.label)+'</b> <span class="ind">'+inds(m)+'</span><small>'
+      +(m.kind==='llm'?'Assistant · ':m.kind==='voice'?'Dictée vocale · ':'Images · ')+esc(m.desc||'')+'</small></div>'+st+'</div>'}).join('')+'</div>';
   const todo=recs.filter(m=>!m.installed&&!(m.job&&m.job.state==='running'));
   $('wInst').style.display=todo.length?'':'none';$('wInst').textContent=todo.length>1?'Installer les recommandés ('+todo.reduce((t,m)=>t+m.size_gb,0).toFixed(0)+' Go)':'Installer ('+(todo[0]?.size_gb||0).toFixed(0)+' Go)';
   $('wOk').classList.toggle('go',!todo.length);
   if(recs.some(m=>m.job&&m.job.state==='running')&&$('welc').style.display==='grid')welcTimer=setTimeout(renderWelcome,1500)}
 $('wAgain').onclick=async()=>{$('wSys').innerHTML='<div class="mute">Analyse de ta machine…</div>';await fetch('/api/syscheck',{method:'POST'});renderWelcome()};
-$('wInst').onclick=async()=>{const ids=['llm','image'].map(k=>SYS.recommended[k]).filter(Boolean);
+$('wInst').onclick=async()=>{const ids=['llm','image','voice'].map(k=>SYS.recommended[k]).filter(Boolean);
   await fetch('/api/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});renderWelcome()};
 $('wLib').onclick=()=>{closeWelcome();showLib(true)};
 function closeWelcome(){clearTimeout(welcTimer);$('welc').style.display='none';if(welcFirst)fetch('/api/onboarded',{method:'POST'})}

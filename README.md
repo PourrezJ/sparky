@@ -12,6 +12,8 @@ Discute, analyse des images, génère et retouche des visuels — sans qu'aucune
 - **Chat comme ChatGPT**, en local, avec historique des conversations et **conversations éphémères** (rien n'est enregistré).
 - **Vision** : envoie des photos, captures ou documents scannés, l'assistant les voit et les analyse.
 - **Création et retouche d'images** par simple demande ; l'agent vérifie lui-même le résultat et corrige si besoin.
+- **Panneau de code (artifacts)** : demande une appli, un jeu, une page ou un script, il s'écrit en direct dans un panneau à droite avec **aperçu exécuté**, code, versions, copie, téléchargement.
+- **Dictée vocale hors ligne** (Whisper) : micro à côté du bouton Envoyer, barres de niveau pendant que tu parles, le texte arrive dans le champ, tu relis et tu envoies.
 - **Niveau de réflexion réglable** (désactivée, légère, normale, approfondie) directement depuis le menu du modèle.
 - **Analyse du système** à l'installation, relançable dans *Paramètres > Système* : détecte GPU, mémoire et disque, puis **recommande les modèles adaptés** à ta machine.
 - **Bibliothèque de modèles** : installation en un clic, reprise automatique des téléchargements, indicateurs de vitesse, qualité et mémoire *pour ta machine*.
