@@ -123,6 +123,13 @@ CATALOG = [
           desc="Dictée vocale hors ligne, très précise (99 langues)."),
     voice("whisper-base", "Whisper base", 3, "openai/whisper-base", 0.3, 0.5, 3,
           desc="Dictée vocale légère, pour les machines sans GPU."),
+    {"id": "e5-small", "kind": "embed", "label": "Multilingual E5 small", "quality": 4,
+     "repo": "intfloat/multilingual-e5-small", "dir": os.path.join(config.EMBED_DIR, "multilingual-e5-small"),
+     "files": [("intfloat/multilingual-e5-small", f, os.path.join(config.EMBED_DIR, "multilingual-e5-small", f))
+               for f in ("config.json", "model.safetensors", "sentencepiece.bpe.model", "special_tokens_map.json",
+                         "tokenizer.json", "tokenizer_config.json")],
+     "size_gb": 0.47, "gpu_secs": 0.1, "cpu_secs": 0.1, "ckpt": "e5-small",
+     "desc": "Mémoire de Sparky Bot : retrouve les souvenirs par le sens (français, anglais…)."},
     klein(),
     qwen_image("qwen21", "Qwen-Image 2.1", 5, desc="Le plus réaliste (~35 s par image), retouche par instruction."),
     ckpt("juggernaut", "Juggernaut XL v9", 4, "RunDiffusion/Juggernaut-XL-v9", "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
@@ -170,7 +177,7 @@ def indicators(m, measured=None, sysinfo=None):
         need = m["size_gb"] + 2.5  # model + context
         fit = 2 if need + img <= mem else 1 if need <= mem else 0
         return {"speed": speed, "fit": fit, "tps": round(tps), "measured": bool(measured)}
-    if m["kind"] == "voice":
+    if m["kind"] in ("voice", "embed"):
         secs = measured or (m["gpu_secs"] if a["mode"] != "cpu" else m["cpu_secs"])
         return {"speed": 3 if secs <= 3 else 2 if secs <= 10 else 1, "fit": 2, "secs": round(secs, 1), "measured": bool(measured)}
     secs = measured or m.get("est_secs", 15) * (230 / max(bw, 60)) ** 0.7

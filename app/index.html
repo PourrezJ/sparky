@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sparky</title>
-<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="icon" href="/logo.png" type="image/png">
 <style>
 :root{--bg:#212121;--side:#171717;--bub:#303030;--hov:#2a2a2a;--line:#383838;--txt:#ececec;--mut:#9b9b9b;--dim:#6b6b6b;--ok:#3ecf8e;--warn:#f5b84b;--bad:#ff6b6b;--blue:#5aa9ff}
 *{box-sizing:border-box}
@@ -274,6 +274,80 @@ body.art #art{display:flex}
 #artLive{font-size:12px;color:var(--warn);display:none;align-items:center;gap:6px}
 body.artlive #artLive{display:flex}
 @media(max-width:900px){#art{position:fixed;inset:0;width:auto;max-width:none;min-width:0;z-index:12}}
+/* ---- Sparky Bot */
+.beta{font-size:10px;padding:1px 6px;border-radius:8px;background:#2f2846;color:#d9ccff;margin-left:auto}
+#botNav .mini{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff9,transparent 40%),var(--pc,#8c7cf0);flex:none;position:relative}
+#botNav .mini::after{content:"";position:absolute;left:5px;top:7px;width:2px;height:3px;border-radius:2px;background:#000a;box-shadow:6px 0 #000a}
+#bot{display:none;flex:1;min-height:0}
+body.botmode #bot{display:flex}
+body.botmode #scroll,body.botmode footer,body.botmode #art{display:none!important}
+.bchat{flex:1;display:flex;flex-direction:column;min-width:0}
+#blog{flex:1;overflow-y:auto;padding:12px 24px 24px;display:flex;flex-direction:column;gap:12px;max-width:820px;width:100%;margin:0 auto}
+.bm{max-width:78%;padding:9px 15px;border-radius:18px;white-space:pre-wrap;word-wrap:break-word;line-height:1.55}
+.bm.user{align-self:flex-end;background:var(--bub)}
+.bm.assistant{align-self:flex-start;background:#26233a;border:1px solid #3a3555}
+.bm .ts{display:block;font-size:10.5px;color:var(--dim);margin-top:3px}
+.learned{align-self:flex-start;display:flex;flex-wrap:wrap;gap:6px;margin-top:-6px;font-size:11.5px}
+.learned span{padding:2px 9px;border-radius:10px;background:#1f3b2e;color:var(--ok)}
+.learned span.up{background:#1e2f45;color:#8fc2ff}.learned span.del{background:#3b1f24;color:#ff9a9a}
+.bin{display:flex;gap:8px;align-items:flex-end;max-width:820px;width:calc(100% - 40px);margin:0 auto 18px;background:var(--bub);border-radius:24px;padding:7px 7px 7px 16px}
+.bin textarea{flex:1;background:none;border:0;outline:0;color:var(--txt);font:inherit;resize:none;height:36px;max-height:160px;padding:7px 0}
+.bin button{width:36px;height:36px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center;flex:none}
+.bin button:disabled{opacity:.25}
+.bside{width:360px;flex:none;border-left:1px solid var(--line);display:flex;flex-direction:column;background:#1c1c1c;min-height:0}
+.bcard{padding:18px 18px 12px;text-align:center;border-bottom:1px solid var(--line)}
+#avatar{width:118px;height:118px;margin:0 auto 6px;animation:float 4s ease-in-out infinite}
+#avatar svg{width:100%;height:100%;overflow:visible}
+@keyframes float{50%{transform:translateY(-5px)}}
+#avatar .lid{transform-origin:center;transform-box:fill-box;animation:blink 5s infinite}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}96%{transform:scaleY(.08)}}
+#avatar .pup{transition:transform .3s}
+#avatar.think .pup{transform:translate(3px,-4px)}
+#avatar.think{animation:float 1.6s ease-in-out infinite}
+#avatar .mouth{transition:d .2s}
+#avatar.talk .mouth{animation:talk .35s infinite alternate}
+@keyframes talk{to{transform:scaleY(1.9)}}
+#avatar .mouth{transform-origin:center;transform-box:fill-box}
+#avatar .glow{animation:glow 3s ease-in-out infinite}
+@keyframes glow{50%{opacity:.55}}
+#bname{margin:4px 0 0;font-size:19px;font-weight:650}
+#bpers{font-size:12.5px;color:var(--mut)}
+.bond{margin:12px auto 0;max-width:260px;text-align:left}
+.bond .row{display:flex;justify-content:space-between;font-size:12px;color:var(--mut)}
+.bond .row b{color:var(--txt);font-weight:550}
+.bbar{height:6px;border-radius:3px;background:#333;overflow:hidden;margin-top:5px}
+.bbar span{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#5aa9ff,#8c7cf0);transition:width .6s}
+#bmood{font-size:11.5px;color:var(--dim);margin-top:8px;min-height:15px}
+.btabs{display:flex;gap:2px;padding:8px 10px 0}
+.btabs button{flex:1;padding:7px 4px;font-size:12.5px;color:var(--mut);border-bottom:2px solid transparent}
+.btabs button.on{color:var(--txt);border-color:#8c7cf0}
+#bpane{flex:1;overflow-y:auto;padding:12px 14px 20px}
+.mh{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.mh input{flex:1;background:#262626;border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:6px 10px;font:inherit;font-size:13px;outline:0}
+.mcat{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);margin:12px 2px 4px}
+.mi{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:9px;font-size:13px;line-height:1.45}
+.mi:hover{background:#ffffff08}
+.mi .t{flex:1;outline:0;border-radius:5px;padding:0 2px}
+.mi .t:focus{background:#2a2a2a;box-shadow:0 0 0 1px #555}
+.mi .imp{display:flex;gap:2px;padding-top:6px;cursor:pointer;flex:none}
+.mi .imp i{width:5px;height:5px;border-radius:50%;background:#444}.mi .imp i.on{background:#8c7cf0}
+.mi button{color:var(--dim);font-size:13px;line-height:1;padding:2px;visibility:hidden}
+.mi:hover button,.mi button.pinned{visibility:visible}
+.mi button.pinned{color:#e8c46a}.mi button:hover{color:var(--txt)}
+.madd{display:flex;gap:6px;margin-top:12px}
+.madd input{flex:1;background:#262626;border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:7px 10px;font:inherit;font-size:13px;outline:0}
+.madd button,.bbtn{padding:6px 12px;border-radius:9px;background:#333;font-size:12.5px}
+.madd button:hover,.bbtn:hover{background:#444}
+.bbtn.danger{color:#ff9a9a;background:#2a1d20}
+.bnote{font-size:12px;color:var(--dim);margin:6px 2px;line-height:1.5}
+.jr{padding:10px 12px;border-radius:10px;background:#242424;margin-bottom:8px;font-size:13px;line-height:1.55}
+.jr small{display:block;color:var(--dim);font-size:11px;margin-bottom:3px}
+.kv{display:flex;gap:8px;padding:6px 4px;font-size:13px;border-bottom:1px solid #2a2a2a}
+.kv b{width:90px;color:var(--mut);font-weight:500;flex:none}
+.bf{margin-bottom:14px}.bf label{display:block;font-size:12px;color:var(--mut);margin-bottom:5px}
+.bf input,.bf select,.bf textarea{width:100%;background:#262626;border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:7px 10px;font:inherit;font-size:13px;outline:0}
+.bf textarea{height:70px;resize:vertical}
+@media(max-width:1000px){.bside{display:none}}
 /* ---- marque */
 .brand{display:flex;align-items:center;gap:9px;padding:4px 6px;min-width:0}
 .brand img{width:28px;height:28px;flex:none}
@@ -323,11 +397,12 @@ body.artlive #artLive{display:flex}
 <body>
 <aside id="side">
   <div class="top">
-    <div class="brand"><img src="/logo.svg" alt=""><div><b>Spark<em>y</em></b><small>100 % local · privé</small></div></div>
+    <div class="brand"><img src="/logo.png" alt=""><div><b>Spark<em>y</em></b><small>100 % local · privé</small></div></div>
     <span class="sp"></span>
     <button class="ib" id="close" title="Fermer la barre latérale"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
     <button class="ib" id="new" title="Nouvelle conversation"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
   </div>
+  <button class="nav" id="botNav" title="Un compagnon qui apprend à te connaître"><span class="mini"></span><span>Sparky Bot</span><span class="beta">bêta</span></button>
   <button class="nav" id="eph" title="Rien n'est enregistré"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z"/></svg>Conversation éphémère</button>
   <div id="list"></div>
   <div class="bot"><button class="nav" id="openSet" style="width:calc(100% - 16px)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Paramètres</button></div>
@@ -347,6 +422,31 @@ body.artlive #artLive{display:flex}
     </div>
   </div>
   <div id="scroll"><div id="log"></div></div>
+  <div id="bot">
+    <div class="bchat">
+      <div id="blog"></div>
+      <div class="bin"><textarea id="bmsg" rows="1" placeholder="Écris à ton compagnon…"></textarea>
+        <button id="bsend" title="Envoyer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+    </div>
+    <aside class="bside">
+      <div class="bcard">
+        <div id="avatar"><svg viewBox="0 0 120 120">
+          <defs><radialGradient id="ag" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".35" style="stop-color:var(--pc,#8c7cf0)"/><stop offset="1" style="stop-color:var(--pc2,#4b3fb0)"/></radialGradient></defs>
+          <circle class="glow" cx="60" cy="62" r="56" style="fill:var(--pc,#8c7cf0)" opacity=".25"/>
+          <path d="M60 10c28 0 50 21 50 50s-22 52-50 52-50-23-50-52 22-50 50-50z" fill="url(#ag)"/>
+          <g class="lid"><ellipse cx="44" cy="56" rx="9" ry="12" fill="#fff"/><circle class="pup" cx="46" cy="58" r="5" fill="#1a1530"/></g>
+          <g class="lid"><ellipse cx="76" cy="56" rx="9" ry="12" fill="#fff"/><circle class="pup" cx="78" cy="58" r="5" fill="#1a1530"/></g>
+          <ellipse cx="36" cy="74" rx="6" ry="3.5" fill="#ff8fb1" opacity=".55"/><ellipse cx="84" cy="74" rx="6" ry="3.5" fill="#ff8fb1" opacity=".55"/>
+          <path class="mouth" d="M50 78q10 9 20 0" fill="none" stroke="#1a1530" stroke-width="3.5" stroke-linecap="round"/>
+        </svg></div>
+        <h3 id="bname">Sparky</h3><div id="bpers"></div>
+        <div class="bond"><div class="row"><b id="bondL"></b><span id="bondX"></span></div><div class="bbar"><span id="bondB"></span></div></div>
+        <div id="bmood"></div>
+      </div>
+      <div class="btabs"><button data-t="mem" class="on">Mémoire</button><button data-t="you">Ton profil</button><button data-t="jour">Journal</button><button data-t="cfg">Réglages</button></div>
+      <div id="bpane"></div>
+    </aside>
+  </div>
   <div id="lib"><div class="lw">
     <div class="lh"><h2>Bibliothèque de modèles</h2><span class="sp"></span>
       <div class="srch"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="Rechercher un modèle…" autocomplete="off"></div>
@@ -414,7 +514,7 @@ body.artlive #artLive{display:flex}
 </div></div>
 <div id="pick"></div>
 <div id="welc"><div class="card">
-  <div class="hd"><img src="/logo.svg" alt=""><div><h2 id="wT">Bienvenue dans Sparky</h2><p id="wP">Ton assistant IA privé : tout tourne sur cette machine.</p></div></div>
+  <div class="hd"><img src="/logo.png" alt=""><div><h2 id="wT">Bienvenue dans Sparky</h2><p id="wP">Ton assistant IA privé : tout tourne sur cette machine.</p></div></div>
   <div id="wSys"><div class="mute">Analyse de ta machine…</div></div>
   <div id="wRec"></div>
   <div class="acts"><button id="wAgain">Relancer l'analyse</button><button id="wLib">Voir tous les modèles</button><button id="wInst" class="go">Installer les recommandés</button><button id="wOk" class="go">Continuer</button></div>
@@ -481,6 +581,22 @@ const EN={
  "le modèle n'a pas pu se charger (mémoire insuffisante ?)":"the model couldn't load (not enough memory?)","modèle en cours d'utilisation":'model in use',
  'ajuste la langue…':'adjusting the language…','affine le visage…':'refining the face…','réflexion trop longue, réponse directe…':'thinking too long, answering directly…',
  'le modèle tournait en boucle, nouvel essai…':'the model was looping, trying again…',"C'est prêt, regarde le panneau à droite.":"It's ready, see the panel on the right.",
+ // Sparky Bot
+ 'Un compagnon qui apprend à te connaître':'A companion that gets to know you','bêta':'beta','Écris à ton compagnon…':'Write to your companion…',
+ 'Ton profil':'About you','Journal':'Journal','Réglages':'Settings','Qui tu es':'Who you are','Goûts et préférences':'Tastes & preferences','Projets':'Projects',
+ 'Proches':'People','Objectifs':'Goals','Événements':'Events','Façon de parler':'How you talk','Autres':'Other','Chercher dans la mémoire…':'Search memory…',
+ 'Ajouter un souvenir…':'Add a memory…','Ajouter':'Add','🔎 Recherche par le sens active (multilingual-e5).':'🔎 Semantic search on (multilingual-e5).',
+ 'Recherche par mots-clés (modèle de mémoire absent).':'Keyword search (memory model not installed).',
+ 'Tout reste sur ton PC. Clique sur un souvenir pour le modifier, épingle-le ★ pour qu’il soit toujours pris en compte, ou supprime-le ✕.':'Everything stays on your PC. Click a memory to edit it, pin it ★ so it is always taken into account, or delete it ✕.',
+ 'Ta façon de parler (apprise)':'How you like to talk (learned)','Rien encore : ça s’apprend au fil des conversations.':'Nothing yet: it is learned over time.',
+ 'Ce que je retiens de nos échanges':'What I remember from our talks','Pas encore de résumé : il se fait pendant les pauses.':'No summary yet: it is written during breaks.',
+ 'À te demander la prochaine fois':'To ask you next time','Notre lien':'Our bond','Réfléchir maintenant':'Reflect now','Réflexion…':'Reflecting…',
+ 'Le journal s’écrit tout seul pendant les pauses entre vos conversations.':'The journal writes itself during the breaks between your conversations.',
+ 'Personnalité':'Personality','Notes de personnalité (optionnel)':'Personality notes (optional)',
+ 'ex. tutoie-moi, parle-moi comme un pote, adore les jeux de mots':'e.g. talk to me like a buddy, love puns, keep it short',
+ 'Mémoire activée (apprendre de nos conversations)':'Memory on (learn from our conversations)','Tout oublier':'Forget everything',
+ 'Aucun souvenir ne correspond.':'No memory matches.','Aucun souvenir pour l’instant : parle-moi de toi !':'No memories yet: tell me about yourself!',
+ 'Importance':'Importance','Épingler':'Pin','Oublier':'Forget','1 souvenir oublié':'1 memory forgotten',
  // descriptions du catalogue
  'Le plus intelligent (GPQA 89) et le meilleur en code ; 2x plus rapide avec MTP.':'The smartest (GPQA 89) and best at code; 2x faster with MTP.',
  'Meilleur généraliste rapide (GPQA 84) ; demande beaucoup de mémoire.':'Best fast all-rounder (GPQA 84); needs a lot of memory.',
@@ -519,6 +635,9 @@ const EN_RX=[
  [/^La dictée vocale fonctionne hors ligne avec (.+) \(([\d.]+) Go à télécharger une seule fois\)\.\nLe télécharger maintenant \?$/,'Voice dictation works offline with $1 ($2 GB, downloaded once).\nDownload it now?'],
  [/^Micro inaccessible : ([\s\S]+)\nAutorise le micro pour cette page \(icône à gauche de l’adresse\)\.$/,'Microphone unavailable: $1\nAllow the microphone for this page (icon left of the address bar).'],
  [/^Dictée : (.+)$/,'Dictation: $1'],
+ [/^Téléchargement du modèle de mémoire… (\d+) %$/,'Downloading the memory model… $1%'],[/^humeur perçue : (.+)$/,'perceived mood: $1'],[/^Écris à (.+)…$/,'Write to $1…'],
+ [/^(.+) · (\d+) échanges · (\d+) jour\(s\) ensemble$/,'$1 · $2 messages · $3 day(s) together'],[/^(\d+) souvenirs oubliés$/,'$1 memories forgotten'],
+ [/^Effacer toute la mémoire, le journal et l’historique de (.+) \?\nC’est définitif\.$/,'Erase all the memory, journal and history of $1?\nThis cannot be undone.'],
 ];
 const EN_PH=[['Mémoire unifiée (CPU + GPU partagent la même mémoire)','Unified memory (CPU + GPU share the same memory)'],[' — GPU alloué : ',' — GPU allocated: '],
  [' · RAM système : ',' · System RAM: '],[' cœurs',' cores'],['Calcul GPU','GPU compute'],['Processeur','Processor'],[' (unifiée avec le GPU)',' (unified with the GPU)'],
@@ -529,7 +648,7 @@ function trCore(t){if(EN[t]!=null)return EN[t];
   let o=t;for(const[a,b]of EN_PH)o=o.split(a).join(b);return o.replace(/(\d)\s?Go\b/g,'$1 GB')}
 function tr(s){if(LANG!=='en'||s==null)return s;const str=String(s),t=str.trim();if(!t)return s;const r=trCore(t);return r===t?str:str.replace(t,r)}
 // tout ce qui s'affiche est traduit, sauf le contenu des conversations et le code
-const NOTR='#log .u .t,#log .a>.t,#log .think,#log .rs .bd,#log .step code,#artB,#artT,.cv>span,pre,code';
+const NOTR='#log .u .t,#log .a>.t,#log .think,#log .rs .bd,#log .step code,#artB,#artT,.cv>span,pre,code,#blog,.mi .t,.jr span,.kv span,.raw,.learned span';
 function trText(n){const p=n.parentElement;if(!p||p.closest(NOTR))return;const v=tr(n.nodeValue);if(v!==n.nodeValue)n.nodeValue=v}
 function trAttrs(e){for(const a of ['title','placeholder']){const v=e.getAttribute&&e.getAttribute(a);if(v){const w=tr(v);if(w!==v)e.setAttribute(a,w)}}}
 function trTree(root){if(LANG!=='en')return;if(root.nodeType===3)return trText(root);if(root.nodeType!==1||root.closest(NOTR))return;
@@ -541,7 +660,7 @@ const _alert=window.alert.bind(window),_confirm=window.confirm.bind(window);wind
 function setLang(l){try{localStorage.setItem('sparky.lang',l)}catch{}fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings:{ui_lang:l}})}).then(()=>location.reload())}
 
 const $=id=>document.getElementById(id), log=$('log'), sc=$('scroll'), ta=$('msg');
-const HELLO='<div id="hello"><img src="/logo.svg" alt=""><h2>Comment puis-je t\'aider ?</h2><p>Pose une question, envoie des images, demande une création.</p></div>';
+const HELLO='<div id="hello"><img src="/logo.png" alt=""><h2>Comment puis-je t\'aider ?</h2><p>Pose une question, envoie des images, demande une création.</p></div>';
 const SVG={
  clock:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2 2"/></svg>',
  one:'<svg width="15" height="14" viewBox="0 0 16 15" fill="currentColor"><path d="M10.9 3.3 5.4 9.7 3.2 7.6l-.8.9 3 2.8 6.3-7.3z"/></svg>',
@@ -769,6 +888,103 @@ $('recStop').onclick=async()=>{if(!REC||REC.stopped)return;const rate=REC.ctx.sa
   catch(e){alert('Dictée : '+e.message)}
   finally{$('recStop').classList.remove('busy');REC=null;$('box').classList.remove('recording');upd();ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length)}};
 addEventListener('keydown',e=>{if(!REC)return;if(e.key==='Escape')$('recX').click();else if(e.key==='Enter'){e.preventDefault();$('recStop').click()}});
+
+// ---------- Sparky Bot : compagnon avec mémoire
+let BOT=null,bTab='mem',bBusy=false,bQ='';
+const PCOL={warm:['#8c7cf0','#4b3fb0'],playful:['#f0a35a','#c0532a'],coach:['#3ecf8e','#1e7d55'],calm:['#5aa9ff','#2b5fb0']};
+const FRL={'Just met':'On vient de se rencontrer','Getting to know you':'On apprend à se connaître','Friends':'Amis','Good friends':'Bons amis','Close friends':'Amis proches',
+ 'Warm & supportive':'Chaleureux et bienveillant','Playful & witty':'Joueur et plein d’esprit','Focused coach':'Coach motivant','Calm & thoughtful':'Calme et réfléchi'};
+const lbl=s=>LANG==='fr'?(FRL[s]||s):s;
+const CATL={identity:'Qui tu es',preference:'Goûts et préférences',project:'Projets',people:'Proches',goal:'Objectifs',event:'Événements',style:'Façon de parler',other:'Autres'};
+const api=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
+function avatarState(s){const a=$('avatar');a.classList.remove('think','talk');if(s)a.classList.add(s)}
+function setBotMode(on){document.body.classList.toggle('botmode',on);$('botNav').classList.toggle('on',on);
+  if(on){$('eph').classList.remove('on');document.querySelectorAll('.cv').forEach(c=>c.classList.remove('on'));openBot()}
+  try{localStorage.setItem('sparky.bot',on?'1':'0')}catch{}}
+$('botNav').onclick=()=>setBotMode(true);
+['new','new2','eph'].forEach(id=>$(id).addEventListener('click',()=>setBotMode(false),true));
+$('list').addEventListener('click',()=>setBotMode(false),true);
+async function loadBot(){BOT=await(await fetch('/api/bot')).json();renderBotCard();renderPane();return BOT}
+function renderBotCard(){const p=BOT.profile,c=PCOL[p.persona]||PCOL.warm;
+  for(const el_ of [$('avatar'),$('botNav')]){el_.style.setProperty('--pc',c[0]);el_.style.setProperty('--pc2',c[1])}
+  $('bname').textContent=p.name;$('bpers').textContent=lbl(BOT.persona[0]);
+  const b=BOT.bond;$('bondL').textContent=lbl(b.label);$('bondX').textContent=b.next?(b.xp+' / '+b.next+' xp'):(b.xp+' xp');
+  $('bondB').style.width=(b.next?Math.min(100,(b.xp-b.floor)/(b.next-b.floor)*100):100)+'%';
+  $('bmood').textContent=BOT.mood?('humeur perçue : '+BOT.mood):'';
+  $('bmsg').placeholder='Écris à '+p.name+'…'}
+function bmsgEl(m){const d=el('div','bm '+m.role);d.innerHTML=mdx(m.text||'');if(m.ts){d.append(el('span','ts',hhmm(m.ts)))}return d}
+function renderLog(){const L=$('blog');L.innerHTML='';BOT.messages.forEach(m=>L.append(bmsgEl(m)));L.scrollTop=L.scrollHeight}
+async function openBot(){await loadBot();renderLog();
+  const last=BOT.messages.at(-1);if(!last||Date.now()/1000-last.ts>3*3600)botStream('/api/bot/greet',{})}
+async function botStream(path,body,userText){if(bBusy)return;bBusy=true;$('bsend').disabled=true;const L=$('blog');
+  if(userText){L.append(bmsgEl({role:'user',text:userText,ts:Date.now()/1000}))}
+  const d=el('div','bm assistant');d.innerHTML='<span class="dots"><i></i><i></i><i></i></span>';L.append(d);L.scrollTop=L.scrollHeight;avatarState('think');
+  const before=BOT.last_ops&&BOT.last_ops.ts;
+  try{const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok){const j=await r.json();throw new Error(j.error)}
+    const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
+    for(;;){const{value,done}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});let k;
+      while((k=buf.indexOf('\n\n'))>=0){const line=buf.slice(0,k);buf=buf.slice(k+2);if(!line.startsWith('data: '))continue;const e=JSON.parse(line.slice(6));
+        if(e.type==='token'){avatarState('talk');d.innerHTML=mdx(e.text);L.scrollTop=L.scrollHeight}
+        else if(e.type==='reply'){d.innerHTML=mdx(e.text);d.append(el('span','ts',hhmm()));if(e.bond){BOT.bond=e.bond;renderBotCard()}}
+        else if(e.type==='noop'){d.remove()}
+        else if(e.type==='error'){d.innerHTML='<span class="err">'+esc(tr(e.text))+'</span>'}}}
+  }catch(e){d.innerHTML='<span class="err">'+esc(tr('Message non envoyé : '+e.message))+'</span>'}
+  finally{bBusy=false;$('bsend').disabled=false;avatarState(null);if(userText)watchLearning(before,d)}}
+async function watchLearning(before,after){for(let i=0;i<40;i++){await new Promise(r=>setTimeout(r,1500));await loadBot();const o=BOT.last_ops;
+  if(o&&o.ts!==before){const n=el('div','learned');
+    (o.add||[]).forEach(a=>n.append(el('span','','🧠 + '+esc(a.text))));(o.update||[]).forEach(u=>n.append(el('span','up','✎ '+esc(u.text))));
+    if((o.delete||[]).length)n.append(el('span','del','− '+tr(o.delete.length>1?o.delete.length+' souvenirs oubliés':'1 souvenir oublié')));
+    if(n.childNodes.length){after.after(n);$('blog').scrollTop=$('blog').scrollHeight}return}}}
+function bsend(){const t=$('bmsg').value.trim();if(!t||bBusy)return;$('bmsg').value='';bgrow();botStream('/api/bot/chat',{text:t},t)}
+function bgrow(){const t=$('bmsg');t.style.height='36px';t.style.height=Math.min(160,t.scrollHeight)+'px'}
+$('bsend').onclick=bsend;$('bmsg').addEventListener('input',bgrow);
+$('bmsg').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();bsend()}});
+document.querySelectorAll('.btabs button').forEach(b=>b.onclick=()=>{bTab=b.dataset.t;document.querySelectorAll('.btabs button').forEach(x=>x.classList.toggle('on',x===b));renderPane()});
+function renderPane(){const P=$('bpane');if(!BOT)return;
+  if(bTab==='mem'&&P.contains(document.activeElement)&&document.activeElement.matches('.t,input'))return;  // ne pas couper une saisie
+  P.innerHTML='';
+  if(bTab==='mem'){
+    const h=el('div','mh');const q=el('input');q.placeholder='Chercher dans la mémoire…';q.value=bQ;h.append(q);P.append(h);
+    const box=el('div');P.append(box);q.oninput=()=>{bQ=q.value;renderMems(box)};renderMems(box);
+    const add=el('div','madd');const ai=el('input');ai.placeholder='Ajouter un souvenir…';const ab=el('button','','Ajouter');
+    ab.onclick=async()=>{if(!ai.value.trim())return;await api('/api/bot/memory',{text:ai.value.trim(),category:'other',importance:4});ai.value='';ai.blur();await loadBot()};
+    ai.onkeydown=e=>{if(e.key==='Enter')ab.click()};add.append(ai,ab);P.append(add);
+    const j=BOT.embedJob;P.append(el('div','bnote',BOT.embeddings?'🔎 Recherche par le sens active (multilingual-e5).':(j&&j.state==='running'?'Téléchargement du modèle de mémoire… '+Math.floor(j.done/Math.max(1,j.total)*100)+' %':'Recherche par mots-clés (modèle de mémoire absent).')));
+    P.append(el('div','bnote','Tout reste sur ton PC. Clique sur un souvenir pour le modifier, épingle-le ★ pour qu’il soit toujours pris en compte, ou supprime-le ✕.'));}
+  else if(bTab==='you'){
+    const st=BOT.style||{};P.append(el('div','mcat','Ta façon de parler (apprise)'));
+    const ks=Object.keys(st);if(!ks.length)P.append(el('div','bnote','Rien encore : ça s’apprend au fil des conversations.'));
+    ks.forEach(k=>{const r=el('div','kv');r.append(el('b','',esc(k)),el('span','',esc(st[k])));const x=el('button','bbtn','✕');x.style.marginLeft='auto';x.style.padding='0 6px';
+      x.onclick=async()=>{const s={...st};delete s[k];await api('/api/bot/style',{style:s});await loadBot()};r.append(x);P.append(r)});
+    P.append(el('div','mcat','Ce que je retiens de nos échanges'));P.append(el('div',BOT.summary?'bnote raw':'bnote',esc(BOT.summary||'Pas encore de résumé : il se fait pendant les pauses.')));
+    if(BOT.checkin){P.append(el('div','mcat','À te demander la prochaine fois'));P.append(el('div','bnote raw',esc(BOT.checkin)))}
+    P.append(el('div','mcat','Notre lien'));P.append(el('div','bnote',esc(lbl(BOT.bond.label))+' · '+BOT.bond.chats+' échanges · '+BOT.bond.days.length+' jour(s) ensemble'));}
+  else if(bTab==='jour'){
+    const rb=el('button','bbtn','Réfléchir maintenant');rb.onclick=async()=>{rb.textContent='Réflexion…';rb.disabled=true;avatarState('think');await api('/api/bot/reflect');avatarState(null);await loadBot()};P.append(rb);
+    if(!BOT.journal.length)P.append(el('div','bnote','Le journal s’écrit tout seul pendant les pauses entre vos conversations.'));
+    BOT.journal.forEach(j=>{const d=el('div','jr');d.append(el('small','',new Date(j.ts*1000).toLocaleString(LANG==='fr'?'fr-FR':'en-US',{dateStyle:'medium',timeStyle:'short'})),el('span','',esc(j.text)));d.lastChild.dataset.raw='1';P.append(d)})}
+  else{const p=BOT.profile;
+    const f1=el('div','bf');f1.append(el('label','','Nom'));const n=el('input');n.value=p.name;f1.append(n);
+    const f2=el('div','bf');f2.append(el('label','','Personnalité'));const s=el('select');for(const k in BOT.personas){const o=el('option','',esc(lbl(BOT.personas[k])));o.value=k;s.append(o)}s.value=p.persona;f2.append(s);
+    const f3=el('div','bf');f3.append(el('label','','Notes de personnalité (optionnel)'));const t=el('textarea');t.placeholder='ex. tutoie-moi, parle-moi comme un pote, adore les jeux de mots';t.value=p.custom||'';f3.append(t);
+    const f4=el('div','bf');const lab=el('label','');const cb=el('input');cb.type='checkbox';cb.checked=p.memory_on;cb.style.width='auto';lab.append(cb,el('span','',' Mémoire activée (apprendre de nos conversations)'));f4.append(lab);
+    const sv=el('button','bbtn','Enregistrer');sv.onclick=async()=>{await api('/api/bot/profile',{name:n.value.trim()||'Sparky',persona:s.value,custom:t.value.trim(),memory_on:cb.checked});await loadBot()};
+    const fg=el('button','bbtn danger','Tout oublier');fg.style.marginLeft='8px';
+    fg.onclick=async()=>{if(!confirm('Effacer toute la mémoire, le journal et l’historique de '+p.name+' ?\nC’est définitif.'))return;await api('/api/bot/forget');await loadBot();renderLog();botStream('/api/bot/greet',{})};
+    P.append(f1,f2,f3,f4,sv,fg)}}
+function renderMems(box){box.innerHTML='';const q=bQ.trim().toLowerCase();const M=BOT.memories.filter(m=>!q||m.text.toLowerCase().includes(q));
+  if(!M.length){box.append(el('div','bnote',BOT.memories.length?'Aucun souvenir ne correspond.':'Aucun souvenir pour l’instant : parle-moi de toi !'));return}
+  const groups={};M.forEach(m=>(groups[m.category]=groups[m.category]||[]).push(m));
+  for(const c of Object.keys(CATL))if(groups[c]){box.append(el('div','mcat',CATL[c]+' · '+groups[c].length));
+    groups[c].forEach(m=>{const r=el('div','mi');const t=el('span','t',esc(m.text));t.contentEditable='true';
+      t.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();t.blur()}};t.onblur=async()=>{const v=t.textContent.trim();if(v&&v!==m.text){await api('/api/bot/memory',{id:m.id,text:v});await loadBot()}};
+      const imp=el('span','imp',[1,2,3,4,5].map(i=>'<i class="'+(i<=m.importance?'on':'')+'"></i>').join(''));imp.title='Importance';
+      imp.onclick=async()=>{await api('/api/bot/memory',{id:m.id,importance:m.importance%5+1});await loadBot()};
+      const pin=el('button',m.pinned?'pinned':'','★');pin.title='Épingler';pin.onclick=async()=>{await api('/api/bot/memory',{id:m.id,pinned:m.pinned?0:1});await loadBot()};
+      const del=el('button','','✕');del.title='Oublier';del.onclick=async()=>{await api('/api/bot/memory',{id:m.id,delete:1});await loadBot()};
+      r.append(imp,t,pin,del);box.append(r)})}}
+try{if(localStorage.getItem('sparky.bot')==='1')setTimeout(()=>setBotMode(true),300)}catch{}
 
 // ---------- pièces jointes
 function loadImg(src){return new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=src})}

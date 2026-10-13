@@ -1,4 +1,9 @@
-<p align="center"><img src="app/logo.png" width="96" alt="Sparky"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="app/logo.png">
+    <img src="docs/logo-on-dark.png" width="96" alt="Sparky">
+  </picture>
+</p>
 
 <h1 align="center">Sparky</h1>
 
@@ -24,6 +29,7 @@ everything runs on your own PC. Nothing is sent to the internet.</p>
 - **Code & apps panel** — ask for a game, a web page, a tool or a script: it is written live in a panel next to the chat, with a **running preview**, the code, versions, copy and download.
 - **Images** — generate and edit pictures by simply asking ("make it snow", "remove the bottle"). The agent checks its own result and retries when needed.
 - **Vision** — drop photos, screenshots or scanned documents: the assistant sees and analyses them.
+- **Sparky Bot (beta)** — a companion that remembers you, learns your style and grows with you, with a memory you can see and edit ([details](#-sparky-bot--personal-companion-with-memory-beta-in-progress)).
 - **Voice dictation, offline** — click the mic, talk, stop: Whisper turns your voice into text right in the input box.
 - **Adjustable thinking** — Off, Light, Normal or Deep, right from the model menu.
 - **System scan** — at install time (and anytime from *Settings > System*) Sparky checks your GPU, memory and disk, then **recommends the models that fit your machine**.
@@ -42,6 +48,39 @@ everything runs on your own PC. Nothing is sent to the internet.</p>
 <p align="center"><img src="docs/demo-image.gif" alt="Generating and editing an image" width="800"></p>
 
 <p align="center"><img src="docs/demo-voice.gif" alt="Offline voice dictation" width="800"><br><i>Offline voice dictation: live level bars, then the text lands in the input box.</i></p>
+
+## 🚧 Sparky Bot — personal companion with memory *(beta, in progress)*
+
+> **Status: in active development.** Sparky Bot ships as a beta inside Sparky (sidebar → *Sparky Bot*). It works today, but the memory engine and the personality system are still being tuned and may change.
+
+Sparky Bot is a friend-like companion that **remembers you, learns your style and grows with you** — in the spirit of OpenAI's *Dots* and Grok's companions, but **100% local** and with a memory you can actually see and edit.
+
+<p align="center"><img src="docs/demo-bot.gif" alt="Sparky Bot learns about the user while chatting" width="900"></p>
+
+| | |
+|---|---|
+| <img src="docs/bot.png" alt="Sparky Bot with its memory"><br>**Memory** — every fact it learned, grouped, editable, pinnable | <img src="docs/bot-journal.png" alt="Sparky Bot journal"><br>**Journal** — it reflects between conversations and remembers to follow up |
+
+**How the memory works**
+
+- **Learns after every message** — a background pass extracts durable facts about you (who you are, tastes, projects, people, goals, events) and decides to *add*, *update* or *forget*, Mem0-style.
+- **Guard-rails in code, not just in the prompt** — one fact per memory; an update must be about the *same* fact (checked by meaning) or it becomes a new memory instead of overwriting; near-duplicates are ignored; a new memory must come from *your* words, never from the bot's own reply.
+- **Smart retrieval** — before each reply it picks the memories that matter now: meaning (local multilingual embeddings, `multilingual-e5-small`), importance, recency, plus pinned facts.
+- **Time-aware** — "next Tuesday" is stored as a real date, and past events are updated with what happened.
+- **Learns your style** — tone, length, formality, humor, language.
+- **Reflects when idle** — merges duplicates, writes a short journal, updates its summary of your relationship and prepares what to ask next time ("How did the meetup go?").
+- **Relationship level** — from *Just met* to *Close friends* as you talk over days. Always a friend: never romantic, never clingy.
+- **You stay in control** — see, edit, pin or delete any memory, turn learning off, or *Forget everything* in one click. Nothing leaves your PC.
+
+**Roadmap**
+
+- [x] Persistent memory with add / update / forget, guard-rails and semantic search
+- [x] Style profile, journal, follow-ups, relationship level, 4 personalities
+- [x] Animated avatar, bilingual UI (English / French)
+- [ ] Voice conversations (Whisper in, local text-to-speech out)
+- [ ] Proactive check-ins (optional notifications)
+- [ ] Memory import / export, per-memory "why do you know this?" with the source message
+- [ ] Larger evaluation set for the memory engine across models
 
 ## Install (Windows 10/11)
 
@@ -161,6 +200,8 @@ app/
   catalog.py    catalog, downloads, indicators
   syscheck.py   system scan and recommendations
   stt.py        offline voice dictation (Whisper)
+  companion.py  Sparky Bot: persona, learning, reflection, journal (beta)
+  memory.py     Sparky Bot memory: SQLite store + hybrid semantic retrieval
   index.html    interface (English / French)
 install.ps1     step-by-step installer
 start.ps1 / stop.ps1

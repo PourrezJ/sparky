@@ -188,6 +188,8 @@ def use_model(mid):
     m = catalog.BY_ID.get(mid)
     if not m or not catalog.installed(m) or switch["phase"] == "loading":
         return False
+    if m["kind"] == "embed":  # Sparky Bot's memory model: always used once installed
+        return True
     if m["kind"] == "voice":  # nothing to load: Whisper loads on first dictation
         harness.SETTINGS["voice"] = mid
         harness.save_settings()
@@ -283,8 +285,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         q = self.query()
         if path in ("/", "/index.html"):
             return self.send(200, open(os.path.join(HERE, "index.html"), "rb").read(), "text/html; charset=utf-8")
-        if path == "/logo.svg":
-            return self.send(200, open(os.path.join(HERE, "logo.svg"), "rb").read(), "image/svg+xml")
+        if path == "/logo.png":
+            return self.send(200, open(os.path.join(HERE, "logo.png"), "rb").read(), "image/png")
         if path == "/api/health":
             return self.send(200, {"comfy": alive(harness.COMFY + "/system_stats"), "llm": alive(harness.LLM + "/health"),
                                    "llmName": LLMS.get(llm_state["name"], {}).get("label")})
@@ -310,6 +312,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                    "syscheck": syscheck.current(), "onboarded": bool(harness.SETTINGS.get("onboarded"))})
         if path == "/api/syscheck":
             return self.send(200, syscheck.current())
+        if path == "/api/bot":
+            import companion
+            e5 = catalog.BY_ID["e5-small"]
+            if not catalog.installed(e5) and not catalog.jobs.get("e5-small"):
+                catalog.install("e5-small")  # memory search model (0.5 GB), downloaded on first use
+            return self.send(200, companion.snapshot() | {"embedJob": catalog.jobs.get("e5-small")})
         if path == "/api/voice":
             m, ready = voice_model()
             return self.send(200, {"id": m["id"], "label": m["label"], "size_gb": m["size_gb"], "ready": ready,
@@ -362,6 +370,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, {"ok": True})
         if self.path == "/api/syscheck":
             return self.send(200, syscheck.run())
+        if self.path.startswith("/api/bot/"):
+            return self.bot(self.path[len("/api/bot/"):], b)
         if self.path == "/api/onboarded":
             harness.SETTINGS["onboarded"] = True
             harness.save_settings()
@@ -422,6 +432,65 @@ class Handler(http.server.BaseHTTPRequestHandler):
         s.turn(b.get("text", ""), uploads, mask, b.get("maskFor"), emit)
 
 
+    def stream(self):
+        """Opens a Server-Sent Events response and returns an emit(event) function."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+
+        def emit(e):
+            try:
+                self.wfile.write(("data: " + json.dumps(e, ensure_ascii=False) + "\n\n").encode())
+                self.wfile.flush()
+            except OSError:
+                pass
+        return emit
+
+    def bot(self, action, b):
+        """Sparky Bot: companion with long-term memory (see companion.py)."""
+        import companion
+        S = companion.S
+        if action in ("chat", "greet"):
+            if not llm_state["name"]:
+                return self.send(409, {"error": "Aucun assistant n'est installé : ouvre Paramètres > Bibliothèque de modèles."})
+            emit = self.stream()
+            try:
+                if action == "chat":
+                    companion.chat((b.get("text") or "").strip(), emit)
+                else:
+                    t = companion.greeting(emit)
+                    emit({"type": "reply", "text": t, "bond": companion.bond()} if t else {"type": "noop"})
+            except Exception as e:
+                emit({"type": "error", "text": f"assistant indisponible : {e}"})
+            emit({"type": "done"})
+            return
+        if action == "memory":  # add / edit / delete / pin one memory
+            if b.get("delete"):
+                S.delete_memory(int(b["id"]))
+            elif b.get("id"):
+                S.update_memory(int(b["id"]), b.get("text"), b.get("category"), b.get("importance"), b.get("pinned"))
+            else:
+                S.add_memory(b.get("text", ""), b.get("category", "other"), int(b.get("importance") or 4), source="user")
+            return self.send(200, {"ok": True})
+        if action == "style":
+            S.set("style", {k: v for k, v in (b.get("style") or {}).items() if v})
+            return self.send(200, {"ok": True})
+        if action == "profile":
+            p = companion.profile()
+            p.update({k: b[k] for k in ("name", "persona", "custom", "memory_on") if k in b})
+            S.set("profile", p)
+            return self.send(200, {"ok": True})
+        if action == "reflect":
+            return self.send(200, {"ok": companion.reflect(force=True)})
+        if action == "forget":
+            S.forget_all()
+            return self.send(200, {"ok": True})
+        return self.send(404, {"error": "introuvable"})
+
+
 class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
@@ -437,6 +506,7 @@ if __name__ == "__main__":
         harness.SETTINGS["llm"] = None  # old setting pointing to a model removed from the catalog
     shutil.rmtree(os.path.join(harness.DATA, "_tmp"), ignore_errors=True)  # leftovers from ephemeral conversations
     syscheck.current()
+    import companion  # Sparky Bot: opens its memory and starts the background reflection loop
     if not a.no_comfy:
         start_comfy()
     if not a.no_llm:

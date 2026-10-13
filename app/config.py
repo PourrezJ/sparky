@@ -24,6 +24,7 @@ LLAMA_SERVER = _p("llama_server", os.path.join(RUNTIME, "llama", "llama-server.e
 LLM_DIR = _p("llm_dir", os.path.join(ROOT, "models", "llm"))
 MMPROJ_DIR = _p("mmproj_dir", os.path.join(ROOT, "models", "mmproj"))
 VOICE_DIR = _p("voice_dir", os.path.join(ROOT, "models", "voice"))
+EMBED_DIR = _p("embed_dir", os.path.join(ROOT, "models", "embed"))
 DATA = _p("data_dir", os.path.join(ROOT, "data"))
 COMFY_MODELS = os.path.join(COMFY_DIR, "models")
 COMFY_IN = os.path.join(COMFY_DIR, "input")
