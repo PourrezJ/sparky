@@ -305,13 +305,40 @@ def _comfy_run(graph):
     return os.path.join(COMFY_OUT, im.get("subfolder", ""), im["filename"])
 
 
+def json_closed(t, st):
+    """Suit le texte au fil du flux : True des que le premier objet JSON {...} est ferme (st['pos'] = sa fin)."""
+    i = st["pos"]
+    while i < len(t):
+        c = t[i]
+        i += 1
+        if st["str"]:
+            if st["esc"]:
+                st["esc"] = False
+            elif c == "\\":
+                st["esc"] = True
+            elif c == '"':
+                st["str"] = False
+        elif c == '"' and st["depth"]:
+            st["str"] = True
+        elif c == "{":
+            st["depth"] += 1
+        elif c == "}" and st["depth"]:
+            st["depth"] -= 1
+            if not st["depth"]:
+                st["pos"], st["done"] = i, True
+                return True
+    st["pos"] = i
+    return False
+
+
 def partial_json(buf):
     """Extrait thought / action / text d'un objet JSON en cours d'ecriture (pour l'affichage en direct)."""
     out = {}
     m = re.search(r'"action"\s*:\s*"(\w+)"', buf)
     if m:
         out["action"] = m.group(1)
-    for key in ("thought", "text"):
+    keys = ("thought", "text") + (("id", "title", "kind", "language", "content") if out.get("action") == "artifact" else ())
+    for key in keys:
         m = re.search(r'"%s"\s*:\s*"((?:[^"\\]|\\.)*)' % key, buf)
         if m:
             s = re.sub(r"\\(u[0-9a-fA-F]{0,3})?$", "", m.group(1))  # sequence d'echappement coupee
@@ -372,6 +399,7 @@ class Session:
         self._emit = self._ev = lambda e: None
         self._read = False
         self.lang = None  # langue de la conversation (mise a jour a chaque message clair)
+        self.artifacts = {}  # id -> {title, kind, language, versions: [contenu, ...]}
 
     # -- persistance
     def title(self):
@@ -383,7 +411,7 @@ class Session:
     def save(self):
         if self.ephemeral:
             return
-        st = {k: getattr(self, k) for k in ("images", "masks", "history", "events", "n", "lang")}
+        st = {k: getattr(self, k) for k in ("images", "masks", "history", "events", "n", "lang", "artifacts")}
         st["title"] = self.title()
         with open(os.path.join(self.dir, "session.json"), "w", encoding="utf-8") as f:
             json.dump(st, f, ensure_ascii=False)
@@ -418,6 +446,7 @@ class Session:
             s.masks = {int(k): v for k, v in st["masks"].items()}
             s.history, s.events, s.n = st["history"], st["events"], st["n"]
             s.lang = st.get("lang")
+            s.artifacts = st.get("artifacts", {})
         return s
 
 
@@ -445,8 +474,47 @@ class Session:
         return max(ids) if ids else None
 
     def catalog(self):
-        return self._catalog() + (f"\nREPLY LANGUAGE: {self.lang}. Write \"thought\" and \"reply\" in {self.lang}."
-                                  if self.lang else "")
+        return self._catalog() + self._artifacts() + (
+            f"\nREPLY LANGUAGE: {self.lang}. Write \"thought\" and \"reply\" in {self.lang}." if self.lang else "")
+
+    def _artifacts(self):
+        """Contenu actuel de chaque artifact (l'historique n'en garde qu'une mention, pour ne pas le dupliquer)."""
+        if not self.artifacts:
+            return ""
+        out = ["\n\nARTIFACTS (current content, reuse the id to update):"]
+        for aid, a in self.artifacts.items():
+            out.append(f'--- id "{aid}" · "{a["title"]}" · kind {a["kind"]} · v{len(a["versions"])}\n{a["versions"][-1]}')
+        return "\n".join(out)
+
+    def auto_artifacts(self, text, ev):
+        """Filet de securite : un modele qui colle une page HTML ou un long code dans sa reponse au lieu
+        d'utiliser l'action artifact -> le bloc part dans le panneau, la reponse garde le texte."""
+        def repl(mt):
+            lang, code = (mt.group(1) or "").lower(), mt.group(2).rstrip("\n")
+            if lang not in ("html", "svg") and code.count("\n") < 15:
+                return mt.group(0)
+            t = re.search(r"<title>(.*?)</title>", code, re.S | re.I)
+            h = re.search(r"^#{1,3}\s+(.+)$", text, re.M)
+            title = (t.group(1).strip() if t else h.group(1).strip("* ") if h else f"Code {lang or 'texte'}")[:60]
+            kind = "html" if lang in ("html", "") and re.search(r"<(!doctype|html|body|div|script)", code, re.I) else \
+                "svg" if lang == "svg" else "markdown" if lang in ("md", "markdown") else "code"
+            aid, art = self.tool_artifact({"id": title, "title": title, "kind": kind, "language": lang or kind, "content": code})
+            ev({"type": "artifact", "id": aid, "title": art["title"], "kind": art["kind"], "language": art["language"],
+                "version": len(art["versions"]), "content": code})
+            return ""
+        return re.sub(r"```([\w+#.-]*)[^\n]*\n(.*?)```", repl, text, flags=re.S).strip() or "C'est prêt, regarde le panneau à droite."
+
+    def tool_artifact(self, a):
+        content = a.get("content") or ""
+        if not content.strip():
+            raise RuntimeError("artifact vide : envoie le contenu complet dans args.content")
+        aid = re.sub(r"[^a-z0-9-]+", "-", str(a.get("id") or a.get("title") or "artifact").lower()).strip("-")[:40] or "artifact"
+        kind = a.get("kind") if a.get("kind") in ("html", "code", "markdown", "svg") else "code"
+        art = self.artifacts.setdefault(aid, {"title": a.get("title") or aid, "kind": kind,
+                                              "language": a.get("language") or kind, "versions": []})
+        art.update(title=a.get("title") or art["title"], kind=kind, language=a.get("language") or art["language"])
+        art["versions"].append(content)
+        return aid, art
 
     def _catalog(self):
         lab = {"user": "envoyee par l'utilisateur", "gen": "generee", "ref": "decoupe de reference"}
@@ -466,7 +534,8 @@ class Session:
         n = len(self.history)
         hist = self.history[(((n - 40) // 16 + 1) * 16) if n > 40 else 0:]
         import catalog
-        vision = catalog.BY_ID.get(SETTINGS["llm"], {}).get("vision", True)
+        cur = catalog.BY_ID.get(SETTINGS["llm"])
+        vision = catalog.has_vision(cur) if cur else True
         # un modele sans vision recoit seulement les descriptions des images
         imgs = [i for h in hist for i in h.get("images", [])]
         k = len(imgs)
@@ -490,17 +559,20 @@ class Session:
             msgs[-1]["content"] = msgs[-1]["content"] + [{"type": "text", "text": self.catalog()}]
         return msgs
 
-    def ask_llm(self, retry=True, think=None):
-        import catalog
+    def ask_llm(self, retry=True, think=None, dry=False):
+        import catalog, zlib
         if think is None:  # niveau choisi dans le menu du modele (si le modele sait reflechir)
             think = SETTINGS.get("think", "off") if catalog.BY_ID.get(SETTINGS["llm"], {}).get("think") else "off"
         effort, budget = THINK.get(think, THINK["off"])
         kw = {"enable_thinking": bool(effort)} | ({"reasoning_effort": effort} if effort else {})
-        body = {"messages": self.llm_messages(), "temperature": 0.6 if effort else 0.4, "max_tokens": 1400 + budget,
+        body = {"messages": self.llm_messages(), "temperature": 0.6 if effort else 0.4, "max_tokens": 14000 + budget,
                 "stream": True, "response_format": {"type": "json_object"}, "chat_template_kwargs": kw}
+        if dry:  # anti-repetition de llama.cpp, seulement apres une boucle (il peut gener du code legitimement repetitif)
+            body |= {"dry_multiplier": 0.8, "dry_base": 1.75, "dry_allowed_length": 6, "temperature": 0.7}
         req = urllib.request.Request(LLM + "/v1/chat/completions", json.dumps(body).encode(),
                                      {"Content-Type": "application/json"})
-        t, rs, last, t0, t_rs = "", "", 0.0, time.time(), None
+        t, rs, last, t0, t_rs, chk, looped = "", "", 0.0, time.time(), None, 0, False
+        js = {"pos": 0, "depth": 0, "str": False, "esc": False, "done": False}
         with busy("llm"), urllib.request.urlopen(req, timeout=900) as r:
             for raw in r:
                 line = raw.decode("utf-8", "replace").strip()
@@ -522,18 +594,35 @@ class Session:
                     self._emit({"type": "read"})
                 if budget and not t and len(rs) > budget * 4:  # ~4 caracteres par jeton : budget depasse
                     break
-                if time.time() - last > 0.12:
+                if json_closed(t, js):  # objet JSON complet : la suite (espaces, bavardage) ne sert a rien
+                    break
+                out = t or rs
+                if len(out) > 2500 and len(out) - chk > 400:  # boucle de repetition : la fin se compresse a l'extreme
+                    chk = len(out)
+                    if len(zlib.compress(out[-1500:].encode())) < 160:
+                        looped = True
+                        break
+                if time.time() - last > (0.12 if len(t) < 8000 else 0.35):
                     last = time.time()
                     if rs and not t:
                         self._emit({"type": "reasoning", "text": rs[-1500:], "secs": round(time.time() - t0)})
                     else:
                         self._emit({"type": "typing", **partial_json(t)})
+        if looped and not dry:
+            self._emit({"type": "status", "text": "le modèle tournait en boucle, nouvel essai", "reset": True})
+            return self.ask_llm(retry, think, dry=True)
         if rs:  # garde dans l'historique de la conversation (reaffiche a la reouverture)
             self._ev({"type": "reasoned", "secs": round(t_rs or time.time() - t0), "text": rs[-6000:]})
         if effort and not t.strip():  # reflexion trop longue : reponse directe
             self._emit({"type": "status", "text": "réflexion trop longue, réponse directe"})
             return self.ask_llm(retry, think="off")
+        try:  # derniere sortie brute, pour le diagnostic
+            open(os.path.join(DATA, "last_llm.txt"), "w", encoding="utf-8").write(t)
+        except OSError:
+            pass
         t = re.sub(r"<think>.*?</think>", "", t, flags=re.S)
+        if js["done"]:
+            t = t[:js["pos"]]
         m = re.search(r"\{.*\}", t, re.S)
         try:
             return json.loads(m.group(0))
@@ -551,7 +640,12 @@ class Session:
         """Garde-fou : si la reponse n'est pas (entierement) dans la langue de la conversation, on la fait reecrire."""
         if not self.lang or not text:
             return text
-        words = re.findall(r"[a-zà-ÿ']+", text.lower())
+        prose = re.sub(r"```.*?(```|$)|`[^`\n]*`", " ", text, flags=re.S)  # le code n'a pas de langue
+        if len(prose.split()) < 4:
+            return text
+        if "```" in text:  # une reecriture risquerait d'abimer le code : on garde tel quel
+            return text
+        words = re.findall(r"[a-zà-ÿ']+", prose.lower())
         own = LANG_SETS.get(self.lang, set())
         foreign = {w for k, s in LANG_SETS.items() if k != self.lang for w in s} - own
         ratio = sum(w in foreign for w in words) / max(1, len(words))
@@ -792,6 +886,22 @@ class Session:
                     name, args = act.get("action"), act.get("args") or {}
                     if act.get("thought"):
                         ev({"type": "thought", "text": act["thought"]})
+                    if name == "artifact" and step < max_steps:
+                        try:
+                            aid, art = self.tool_artifact(args)
+                            tools_used, n = True, len(art["versions"])
+                            ev({"type": "artifact", "id": aid, "title": art["title"], "kind": art["kind"],
+                                "language": art["language"], "version": n, "content": art["versions"][-1]})
+                            # l'historique garde une simple mention : le contenu a jour est donne en fin de contexte
+                            self.history[-1]["text"] = json.dumps(
+                                act | {"args": args | {"content": f"[artifact {aid} v{n} : voir ARTIFACTS]"}}, ensure_ascii=False)
+                            self.history.append({"role": "user", "images": [], "text":
+                                f"[ARTIFACT] \"{art['title']}\" (id {aid}) v{n} est affiché à l'utilisateur dans le panneau à droite. "
+                                "Termine maintenant par une courte reply (sans recopier le code)."})
+                        except Exception as e:
+                            ev({"type": "error", "text": str(e)})
+                            self.history.append({"role": "user", "images": [], "text": f"[ERREUR ARTIFACT] {e}"})
+                        continue
                     if name not in ("generate", "edit") or step == max_steps:
                         text = args.get("text") or act.get("text") or act.get("reply")
                         nudge = None
@@ -807,6 +917,11 @@ class Session:
                             self.history.append({"role": "user", "images": [], "text": nudge})
                             continue
                         text = self.fix_language(text or act.get("thought") or "...")
+                        if "```" in text:
+                            short = self.auto_artifacts(text, ev)
+                            if short != text:  # le code vit dans l'artifact : l'historique n'en garde pas de copie
+                                self.history[-1]["text"] = json.dumps(act | {"args": {"text": short + " [code dans l'artifact, voir ARTIFACTS]"}}, ensure_ascii=False)
+                                text = short
                         ev({"type": "reply", "text": text})
                         break
                     sig = json.dumps([name, args], sort_keys=True)
