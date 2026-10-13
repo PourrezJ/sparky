@@ -1,0 +1,9 @@
+# installation locale
+runtime/
+models/
+data/
+config.json
+__pycache__/
+*.pyc
+*.log
+*.part
