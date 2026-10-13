@@ -623,7 +623,10 @@ async function renderLib(fetchIt){if(fetchIt!==false)await loadCat();
     tr.append(el('td','r',m.size_gb.toFixed(1)+' Go'));
     tr.append(el('td','',bolts(m)));tr.append(el('td','',stars(m)));tr.append(el('td','',memi(m)+extras(m)));
     const a=el('div','act'),j=m.job;
-    if(m.installed){
+    if(m.installed&&m.visionMissing&&!(j&&j.state==='running')){const v=el('button','pill use',IC.eye('currentColor')+' + vision');v.title='Télécharger la vision ('+m.visionGb+' Go) pour que ce modèle voie les images';
+      v.onclick=async()=>{await fetch('/api/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:m.id})});renderLib()};a.append(v)}
+    if(m.installed&&j&&j.state==='running'){const pc=j.total?Math.floor(j.done/j.total*100):0;a.innerHTML='<span class="pg"><span style="width:'+pc+'%"></span></span><span style="font-size:12px;color:var(--mut);width:34px;text-align:right">'+pc+'%</span>'}
+    else if(m.installed){
       if(isActive(m))a.append(el('span','pill on','actif'));
       else{const u=el('button','pill use','Utiliser');u.onclick=()=>useModel(m.id,m.label);a.append(u);
         const d=el('button','do del','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>');d.title='Supprimer les fichiers';

@@ -50,23 +50,28 @@ L'analyse du système choisit automatiquement parmi ces options.
 
 ## Modèles du catalogue
 
-| Assistant | Taille | Vision | Réflexion |
-|---|---|---|---|
-| Qwen3.8 27B | 16 Go | ✓ | ✓ |
-| Gemma 4 26B A4B | 17 Go | ✓ | ✓ |
-| Qwen3.5 35B A3B | 21 Go | ✓ | ✓ |
-| Nemotron 3.5 Lightning 30B | 24 Go | | ✓ |
-| gpt-oss 20B | 11 Go | | ✓ |
-| Gemma 4 12B | 7 Go | ✓ | ✓ |
-| Qwen3.5 9B | 6 Go | ✓ | ✓ |
-| Gemma 4 E4B | 6 Go | ✓ | ✓ |
-| Qwen3.5 4B | 3 Go | ✓ | ✓ |
+Vitesses mesurées sur une RTX Spark N1X (Q4, pleine puissance) ; l'application les adapte à ton GPU.
 
-| Images | Taille | Style |
-|---|---|---|
-| Qwen-Image 2.1 | 16 Go | photo, texte, retouche par instruction |
-| Juggernaut XL v9 | 10 Go* | photo (SDXL) |
-| Animagine XL 4.0 | 10 Go* | illustration (SDXL) |
+| Assistant | Taille | Vitesse | GPQA publié | Vision | Usage |
+|---|---|---|---|---|---|
+| gpt-oss 20B | 11 Go | 83 mots/s | 71,5 | | le plus rapide |
+| Qwen3.5 35B A3B | 21 Go | 74 mots/s | 84,2 | ✓ | meilleur généraliste rapide |
+| Nemotron 3.5 Lightning 30B | 24 Go | 74 mots/s | 75,4 | | rapide sans réflexion |
+| Qwen3.5 4B | 3 Go | 66 mots/s | 76,2 | ✓ | minuscule, même sans GPU |
+| Gemma 4 26B A4B | 17 Go | 62 mots/s | 82,3 | ✓ | rapide et polyvalent |
+| Qwen3.5 9B | 6 Go | 34 mots/s | 81,7 | ✓ | meilleur petit modèle |
+| Gemma 4 12B | 7 Go | 34 mots/s | 78,8 | ✓ | léger |
+| Qwen3.8 27B | 16 Go | 16 (33 avec MTP) | 89,2 | ✓ | le plus intelligent, code |
+| Gemma 4 E4B | 6 Go | – | – | ✓ | petites machines |
+
+Tous peuvent réfléchir avant de répondre (niveau réglable). La vision s'ajoute en un clic si elle manque.
+
+| Images | Taille | Temps par image | Style |
+|---|---|---|---|
+| FLUX.2 Klein 4B | 7 Go | ~3 s | photo, texte lisible, retouche par instruction |
+| Qwen-Image 2.1 | 16 Go | ~35 s | le plus réaliste, retouche par instruction |
+| Juggernaut XL v9 | 10 Go* | ~15 s | photo (SDXL) |
+| Animagine XL 4.0 | 10 Go* | ~15 s | illustration (SDXL) |
 
 \* inclut les fichiers IP-Adapter (≈ 4 Go, partagés entre les modèles SDXL) qui permettent de réutiliser un personnage ou un style.
 

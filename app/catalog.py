@@ -10,7 +10,16 @@ import config
 
 HF = "https://huggingface.co/{repo}/resolve/main/{file}"
 M, P, CM = config.LLM_DIR, config.MMPROJ_DIR, config.COMFY_MODELS
-MTP = os.path.join(M, "mtp-Qwen3.8-27B-Q4_0.gguf")  # brouillon MTP optionnel (accelere Qwen3.8 27B)
+REF_BW = 230.0  # bande passante (Go/s) de la machine du benchmark (RTX Spark) : ref_tps y a ete mesure
+
+
+def _first(*paths):
+    """Premier chemin existant (anciens noms de fichiers acceptes), sinon le premier (nom canonique)."""
+    return next((p for p in paths if os.path.exists(p)), paths[0])
+
+
+# brouillon MTP optionnel : double la vitesse de Qwen3.8 27B (mesure : 16 -> 33 mots/s)
+MTP = _first(os.path.join(M, "mtp-Qwen3.8-27B-Q4_0.gguf"), os.path.join(os.path.dirname(M), "mtp", "mtp-Qwen3.8-27B-Q4_0.gguf"))
 BLOCKED = ("uncensor", "abliterat", "heretic", "nsfw", "lustify", "pony", "unfilter", "unaligned", "jailbreak",
            "erotic", "porn", "hentai", "lewd", "nude", "xxx", "18+", "hauhau", "dolphin", "not-for-all-audiences")
 NOWIN = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
@@ -21,12 +30,14 @@ def blocked(*texts):
     return any(w in t for w in BLOCKED)
 
 
-def llm(id, label, quality, repo, file, mmproj, size_gb, active_gb=None, think=True, desc=""):
-    """mmproj : fichier de vision dans le meme depot (None = modele qui ne voit pas les images)."""
+def llm(id, label, quality, repo, file, mmproj, size_gb, active_gb=None, think=True, desc="", ref_tps=None, alt=()):
+    """mmproj : fichier de vision dans le meme depot (None = modele qui ne voit pas les images).
+    ref_tps : vitesse mesuree sur la machine du benchmark ; alt : autres noms locaux acceptes."""
     stem = repo.split("/")[-1].replace("-GGUF", "")
+    main = _first(os.path.join(M, file), *[os.path.join(M, a) for a in alt])
+    vis = _first(os.path.join(P, f"mmproj-{stem}-F16.gguf"), os.path.join(P, f"mmproj-{stem.replace('-it', '')}-F16.gguf"))
     return {"id": id, "kind": "llm", "label": label, "quality": quality, "repo": repo, "desc": desc,
-            "files": [(repo, file, os.path.join(M, file)),
-                      (repo, mmproj, os.path.join(P, f"mmproj-{stem}-F16.gguf")) if mmproj else None],
+            "files": [(repo, file, main), (repo, mmproj, vis) if mmproj else None], "ref_tps": ref_tps,
             "size_gb": size_gb, "active_gb": active_gb or size_gb, "think": think, "vision": mmproj is not None}
 
 
@@ -55,28 +66,49 @@ def qwen_image(id, label, quality, desc=""):
             "files": files, "size_gb": 16.1, "desc": desc, "ckpt": id, "lora": None, "repo": QI, "est_secs": 40}
 
 
+def klein():
+    """FLUX.2 Klein 4B : 3 s par image au benchmark, comprend les phrases et retouche par instruction."""
+    try:
+        gpu = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"], capture_output=True,
+                             text=True, timeout=10, creationflags=NOWIN).stdout.lower()
+    except Exception:
+        gpu = ""
+    # encodeur en FP4 sur les GPU Blackwell (RTX 50, Spark), FP8 ailleurs
+    te = "qwen_3_4b_fp4_mixed.safetensors" if any(k in gpu for k in ("spark", "gb10", "rtx 50", " 50")) else "qwen_3_4b_fp8_mixed.safetensors"
+    files = [("black-forest-labs/FLUX.2-klein-4b-fp8", "flux-2-klein-4b-fp8.safetensors", os.path.join(CM, "diffusion_models", "flux-2-klein-4b-fp8.safetensors")),
+             ("Comfy-Org/z_image_turbo", "split_files/text_encoders/" + te, os.path.join(CM, "text_encoders", te)),
+             ("Comfy-Org/flux2-dev", "split_files/vae/flux2-vae.safetensors", os.path.join(CM, "vae", "flux2-vae.safetensors"))]
+    return {"id": "klein4b", "kind": "image", "engine": "klein", "label": "FLUX.2 Klein 4B", "quality": 4, "style": "photo",
+            "files": files, "size_gb": 3.8 + (3.2 if "fp4" in te else 5.3) + 0.3, "ckpt": "klein4b", "lora": None,
+            "repo": files[0][0], "est_secs": 3, "clip": te,
+            "desc": "Images en ~3 s : rapide, texte lisible, retouche par instruction."}
+
+
+# vitesses (ref_tps) et qualites : benchmark local RTX Spark (oct. 2026), GPQA Diamond publie
 U = "unsloth/"
 CATALOG = [
     llm("qwen38", "Qwen3.8 27B", 5, U + "Qwen3.8-27B-GGUF", "Qwen3.8-27B-UD-Q4_K_M.gguf", "mmproj-F16.gguf", 16.2,
-        desc="Le plus intelligent : raisonnement, code, analyse d'images."),
+        ref_tps=16, desc="Le plus intelligent (GPQA 89) et le meilleur en code ; 2x plus rapide avec MTP."),
+    llm("qwen35moe", "Qwen3.5 35B A3B", 5, U + "Qwen3.5-35B-A3B-GGUF", "Qwen3.5-35B-A3B-Q4_K_M.gguf", "mmproj-F16.gguf", 21.3,
+        active_gb=1.9, ref_tps=74, desc="Meilleur généraliste rapide (GPQA 84) ; demande beaucoup de mémoire."),
     llm("gemma26", "Gemma 4 26B A4B", 4, U + "gemma-4-26B-A4B-it-GGUF", "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf", "mmproj-F16.gguf", 16.9,
-        active_gb=2.6, desc="Google. Mixture d'experts : très rapide et polyvalent."),
-    llm("qwen35moe", "Qwen3.5 35B A3B", 4, U + "Qwen3.5-35B-A3B-GGUF", "Qwen3.5-35B-A3B-Q4_K_M.gguf", "mmproj-F16.gguf", 21.3,
-        active_gb=1.9, desc="Mixture d'experts : très rapide, demande beaucoup de mémoire."),
-    llm("nemotron30", "Nemotron 3.5 Lightning 30B", 4, U + "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
-        "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-UD-Q4_K_M.gguf", None, 23.5, active_gb=2.2,
-        desc="NVIDIA. Rapide, fort en raisonnement ; ne voit pas les images."),
-    llm("gptoss20", "gpt-oss 20B", 4, U + "gpt-oss-20b-GGUF", "gpt-oss-20b-Q4_K_M.gguf", None, 10.8, active_gb=2.4,
-        desc="OpenAI, modèle ouvert. Bon raisonnement ; ne voit pas les images."),
+        active_gb=2.6, ref_tps=62, desc="Google. Très rapide et polyvalent (GPQA 82)."),
+    llm("gptoss20", "gpt-oss 20B", 3, U + "gpt-oss-20b-GGUF", "gpt-oss-20b-Q4_K_M.gguf", None, 10.8, active_gb=2.4,
+        ref_tps=83, desc="OpenAI. Le plus rapide ; bon raisonnement, moins de culture. Ne voit pas les images."),
+    llm("nemotron30", "Nemotron 3.5 Lightning 30B", 3, U + "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
+        "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-UD-Q4_K_M.gguf", None, 23.5, active_gb=2.2, ref_tps=74,
+        alt=("Nemotron-3.5-Lightning-30B-A3B-UD-Q4_K_M.gguf",),
+        desc="NVIDIA. Rapide, répond bien sans réfléchir ; ne voit pas les images."),
+    llm("qwen359", "Qwen3.5 9B", 4, U + "Qwen3.5-9B-GGUF", "Qwen3.5-9B-Q4_K_M.gguf", "mmproj-F16.gguf", 6.2,
+        ref_tps=34, desc="Le meilleur petit modèle (GPQA 82) : économe et bon en français."),
     llm("gemma12", "Gemma 4 12B", 3, U + "gemma-4-12b-it-GGUF", "gemma-4-12b-it-Q4_K_M.gguf", "mmproj-F16.gguf", 6.8,
-        desc="Google. Léger et équilibré."),
-    llm("qwen359", "Qwen3.5 9B", 3, U + "Qwen3.5-9B-GGUF", "Qwen3.5-9B-Q4_K_M.gguf", "mmproj-F16.gguf", 6.2,
-        desc="Léger, bon en français."),
+        ref_tps=34, desc="Google. Léger et équilibré."),
+    llm("qwen354", "Qwen3.5 4B", 3, U + "Qwen3.5-4B-GGUF", "Qwen3.5-4B-Q4_K_M.gguf", "mmproj-F16.gguf", 3.2,
+        ref_tps=66, desc="Minuscule mais solide (GPQA 76) ; très rapide, tourne même sans GPU."),
     llm("gemmae4b", "Gemma 4 E4B", 2, U + "gemma-4-e4b-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf", "mmproj-F16.gguf", 5.5,
-        desc="Google. Pour les petites machines."),
-    llm("qwen354", "Qwen3.5 4B", 2, U + "Qwen3.5-4B-GGUF", "Qwen3.5-4B-Q4_K_M.gguf", "mmproj-F16.gguf", 3.2,
-        desc="Le plus petit : fonctionne même sans GPU."),
-    qwen_image("qwen21", "Qwen-Image 2.1", 5, desc="Le plus réaliste, comprend les phrases, retouche par instruction."),
+        ref_tps=50, desc="Google. Pour les petites machines."),
+    klein(),
+    qwen_image("qwen21", "Qwen-Image 2.1", 5, desc="Le plus réaliste (~35 s par image), retouche par instruction."),
     ckpt("juggernaut", "Juggernaut XL v9", 4, "RunDiffusion/Juggernaut-XL-v9", "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
          6.6, style="photo", desc="Photo réaliste (SDXL), léger."),
     ckpt("animagine", "Animagine XL 4.0", 4, "cagliostrolab/animagine-xl-4.0", "animagine-xl-4.0-opt.safetensors",
@@ -86,12 +118,22 @@ BY_ID = {m["id"]: m for m in CATALOG}
 jobs = {}  # id -> {"done": octets, "total": octets, "state": "running|ok|error", "error": str}
 
 
+def _ok(f):
+    return bool(f) and os.path.exists(f[2]) and not os.path.exists(f[2] + ".part")
+
+
 def installed(m):
-    return all(os.path.exists(f[2]) and not os.path.exists(f[2] + ".part") for f in m["files"] if f)
+    """Un assistant est utilisable des que son modele est la ; la vision (mmproj) est un complement."""
+    files = m["files"][:1] if m["kind"] == "llm" else m["files"]
+    return all(_ok(f) for f in files if f)
+
+
+def has_vision(m):
+    return m["kind"] == "llm" and len(m["files"]) > 1 and _ok(m["files"][1])
 
 
 def llm_args(m):
-    a = [m["files"][0][2]] + (["--mmproj", m["files"][1][2]] if len(m["files"]) > 1 and m["files"][1] else [])
+    a = [m["files"][0][2]] + (["--mmproj", m["files"][1][2]] if has_vision(m) else [])
     if m["id"] == "qwen38" and os.path.exists(MTP):
         a += ["--spec-type", "draft-mtp", "--spec-draft-model", MTP, "--spec-draft-n-max", "3"]
     return a
@@ -106,8 +148,9 @@ def indicators(m, measured=None, sysinfo=None):
     mem, bw, img = a["model_mem_gb"], a["bandwidth"], a["image_gb"] if a["images"] else 0
     if m["kind"] == "llm":
         mtp = m["id"] == "qwen38" and os.path.exists(MTP)
-        tps = measured or bw / m["active_gb"] * (1.8 if mtp else 1.0) * 0.85
-        speed = 3 if tps >= 40 else 2 if tps >= 15 else 1
+        est = m["ref_tps"] * bw / REF_BW if m.get("ref_tps") else bw / m["active_gb"] * 0.85
+        tps = measured or est * (2.05 if mtp else 1.0)
+        speed = 3 if tps >= 40 else 2 if tps >= 20 else 1
         need = m["size_gb"] + 2.5  # modele + contexte
         fit = 2 if need + img <= mem else 1 if need <= mem else 0
         return {"speed": speed, "fit": fit, "tps": round(tps), "measured": bool(measured)}
@@ -170,7 +213,10 @@ def listing(settings):
         meas = settings.get("speed", {}).get(m["id"] if m["kind"] == "llm" else "img:" + m["ckpt"])
         out.append({k: m.get(k) for k in ("id", "kind", "label", "quality", "size_gb", "desc", "repo", "ckpt")}
                    | {"style": m.get("style", ""), "installed": installed(m), "job": jobs.get(m["id"]),
-                      "vision": m.get("vision", True), "think": m.get("think", False), "custom": m.get("custom", False),
+                      "vision": has_vision(m) if installed(m) else m.get("vision", False),
+                      "visionMissing": installed(m) and m.get("vision", False) and not has_vision(m),
+                      "visionGb": 0.9 if m.get("vision") else 0,
+                      "think": m.get("think", False), "custom": m.get("custom", False),
                       "recommended": m["id"] in rec, "qualityGuess": m.get("qualityGuess", False),
                       **indicators(m, meas, info)})
     return out

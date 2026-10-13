@@ -65,7 +65,7 @@ def assess(hw):
     bw = next((b for k, b in BANDWIDTH if k in name), None) if g else None
     if bw is None:
         bw = (max(150, g["vram_gb"] * 25) if g else 40)
-    image_gb = 8.0 if mem >= 20 else 6.0               # SDXL + IP-Adapter pendant une generation
+    image_gb = 7.5                                     # FLUX.2 Klein 4B (ou SDXL) pendant une generation
     if mode == "cpu" or mem < 6:
         tier, label = 1, "Limitée"
     elif mem < 12:
@@ -86,19 +86,18 @@ def recommend(sysinfo):
     ind = {m["id"]: catalog.indicators(m, sysinfo=sysinfo) for m in llms}
     for need_fit, need_speed in ((2, 2), (1, 2), (2, 1), (1, 1)):
         ok = [m for m in llms if ind[m["id"]]["fit"] >= need_fit and ind[m["id"]]["speed"] >= need_speed]
-        if ok:
-            best = max(ok, key=lambda m: (m["quality"], m.get("vision", False), ind[m["id"]]["speed"], -m["size_gb"]))
+        if ok:  # qualite d'abord, avec un bonus aux modeles rapides (benchmark : les MoE dominent vitesse/qualite)
+            best = max(ok, key=lambda m: (m["quality"] + (0.6 if ind[m["id"]]["speed"] == 3 else 0),
+                                          m.get("vision", False), ind[m["id"]]["tps"]))
             out["llm"] = best["id"]
             break
     a = sysinfo["assess"]
     if a["images"]:
+        # FLUX.2 Klein 4B : ~3 s par image, 7 Go ; Qwen-Image (plus beau, 10x plus lent) reste dans la bibliotheque
         imgs = [m for m in catalog.CATALOG if m["kind"] == "image" and not m.get("custom")]
-        big = [m for m in imgs if m.get("engine") == "qwen21"]
-        if big and a["model_mem_gb"] >= 26:
-            out["image"] = big[0]["id"]
-        else:
-            sdxl = [m for m in imgs if m.get("engine") != "qwen21"]
-            out["image"] = max(sdxl, key=lambda m: m["quality"])["id"] if sdxl else None
+        fits = [m for m in imgs if catalog.indicators(m, sysinfo=sysinfo)["fit"] >= 1]
+        pick = next((m for m in fits if m.get("engine") == "klein"), None) or (max(fits, key=lambda m: m["quality"]) if fits else None)
+        out["image"] = pick["id"] if pick else None
     else:
         notes.append("Pas de GPU NVIDIA compatible : la génération d'images serait très lente, elle n'est pas recommandée.")
     if a["mode"] == "cpu":

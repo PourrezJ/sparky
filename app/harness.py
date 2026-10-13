@@ -65,7 +65,7 @@ NEGATIVE = "blurry, low quality, deformed, bad anatomy, extra fingers, extra lim
 PROMPT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompt.md")
 QWEN_NOTES = """
 
-IMAGE MODEL = QWEN-IMAGE 2.1 — these rules REPLACE the SDXL-specific ones above (weights, end_at, face/character crops, denoise, region boxes, negative):
+IMAGE MODEL = {label} — these rules REPLACE the SDXL-specific ones above (weights, end_at, face/character crops, denoise, region boxes, negative):
 - It understands full sentences: write the prompt as one rich, natural English paragraph describing the finished image (subject, look, outfit, pose, place, light, camera/framing, mood). Exact text to render in the image goes in "double quotes".
 - It is photorealistic by default and renders faces very well. For a drawing, say the style explicitly.
 - REFERENCES: list images in refs (role/weight/end_at are ignored). Inside the prompt, call them "image 1", "image 2"... in the order of refs for generate. For edit, the edited image is ALWAYS "image 1" and refs follow as image 2, 3...  E.g. generate with refs [#1]: "The woman from image 1, same face, hair and outfit, now walking on a beach at sunset...".
@@ -80,8 +80,8 @@ def system_prompt():
     m = image_model()
     info = f"{m['label']} ({m.get('style') or 'general'} style)"
     base = open(PROMPT_FILE, encoding="utf-8").read() + "\nCurrent image model: " + info + "."
-    if m.get("engine") == "qwen21":
-        base += QWEN_NOTES
+    if m.get("engine") in INSTRUCT:
+        base += QWEN_NOTES.replace("{label}", m["label"].upper())
     return base
 
 
@@ -174,6 +174,44 @@ def build_qwen(prompt, seed, size=None, images=(), lora=None, steps=25):
     g["9"] = {"class_type": "VAEDecode", "inputs": {"samples": ["8", 0], "vae": ["4", 0]}}
     g["20"] = {"class_type": "SaveImage", "inputs": {"images": ["9", 0], "filename_prefix": "defend"}}
     return g
+
+
+def build_klein(prompt, seed, size=None, images=(), steps=4, clip="qwen_3_4b_fp4_mixed.safetensors"):
+    """FLUX.2 Klein 4B (distille, 4 etapes) : generation, ou retouche par instruction quand size est None
+    (meme cadre que l'image 1). Les images sont passees en references latentes ('image 1', 'image 2'...)."""
+    if size is None:
+        w, h = Image.open(os.path.join(COMFY_IN, images[0])).size
+        size = (max(256, w // 16 * 16), max(256, h // 16 * 16))
+    g = {"1": {"class_type": "UNETLoader", "inputs": {"unet_name": "flux-2-klein-4b-fp8.safetensors", "weight_dtype": "default"}},
+         "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip, "type": "flux2", "device": "default"}},
+         "3": {"class_type": "VAELoader", "inputs": {"vae_name": "flux2-vae.safetensors"}},
+         "4": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["2", 0]}}}
+    cond = ["4", 0]
+    for i, name in enumerate(images[:4]):
+        g[f"6{i}"] = {"class_type": "LoadImage", "inputs": {"image": name}}
+        g[f"7{i}"] = {"class_type": "VAEEncode", "inputs": {"pixels": [f"6{i}", 0], "vae": ["3", 0]}}
+        g[f"8{i}"] = {"class_type": "ReferenceLatent", "inputs": {"conditioning": cond, "latent": [f"7{i}", 0]}}
+        cond = [f"8{i}", 0]
+    g["5"] = {"class_type": "BasicGuider", "inputs": {"model": ["1", 0], "conditioning": cond}}
+    g["6"] = {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "euler"}}
+    g["7"] = {"class_type": "Flux2Scheduler", "inputs": {"steps": steps, "width": size[0], "height": size[1]}}
+    g["8"] = {"class_type": "RandomNoise", "inputs": {"noise_seed": seed}}
+    g["9"] = {"class_type": "EmptyFlux2LatentImage", "inputs": {"width": size[0], "height": size[1], "batch_size": 1}}
+    g["10"] = {"class_type": "SamplerCustomAdvanced", "inputs": {"noise": ["8", 0], "guider": ["5", 0], "sampler": ["6", 0],
+                                                                 "sigmas": ["7", 0], "latent_image": ["9", 0]}}
+    g["11"] = {"class_type": "VAEDecode", "inputs": {"samples": ["10", 0], "vae": ["3", 0]}}
+    g["20"] = {"class_type": "SaveImage", "inputs": {"images": ["11", 0], "filename_prefix": "defend"}}
+    return g
+
+
+INSTRUCT = ("qwen21", "klein")  # moteurs qui comprennent les phrases et retouchent par instruction
+
+
+def build_instruct(m, prompt, seed, size=None, images=(), steps=None):
+    if m.get("engine") == "klein":
+        return build_klein(prompt, seed, size=size, images=images, steps=steps or 4,
+                           clip=m.get("clip", "qwen_3_4b_fp4_mixed.safetensors"))
+    return build_qwen(prompt, seed, size=size, images=images, lora=m.get("lora"), steps=steps or 25)
 
 
 def build_graph(prompt, negative, seed, size=None, src=None, mask=None, denoise=1.0, refs=()):
@@ -647,8 +685,7 @@ class Session:
                      + ("left" if rx < 0.35 else "right" if rx > 0.65 else "center"))
         note = (f" (This image is a close-up crop of the area to modify: make the change in the {where} part of "
                 "image 1, at a scale consistent with the surroundings, and keep the borders of the image unchanged.)")
-        g = build_qwen(prompt + note, random.randrange(2 ** 31), images=[comfy_file(big, "dlia_zone")] + refs,
-                       lora=m.get("lora"))
+        g = build_instruct(m, prompt + note, random.randrange(2 ** 31), images=[comfy_file(big, "dlia_zone")] + refs)
         out = Image.open(comfy_run(g)).convert("RGB").resize(crop.size, Image.LANCZOS)
         soft = mk.crop((cx1, cy1, cx2, cy2)).filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(max(6, crop.width // 40)))
         res = src.copy()
@@ -659,8 +696,8 @@ class Session:
         size = SIZES.get(a.get("aspect"), SIZES["square"])
         seed = int(a.get("seed") or random.randrange(2 ** 31))
         m = image_model()
-        if m.get("engine") == "qwen21":
-            g = build_qwen(a.get("prompt", ""), seed, size=size, images=self.ref_images(a.get("refs")), lora=m.get("lora"))
+        if m.get("engine") in INSTRUCT:
+            g = build_instruct(m, a.get("prompt", ""), seed, size=size, images=self.ref_images(a.get("refs")))
             return self.add_image(Image.open(comfy_run(g)).convert("RGB"), "gen", a.get("prompt", "")), []
         refs, crops = self.prep_refs(a.get("refs"))
         g = build_graph(a.get("prompt", ""), a.get("negative") or NEGATIVE, seed, size=size, refs=refs)
@@ -678,13 +715,13 @@ class Session:
         src = fit_1mp(Image.open(self.images[iid]["path"]).convert("RGB"))
         region = a.get("region", "all")
         m = image_model()
-        if m.get("engine") == "qwen21":
+        if m.get("engine") in INSTRUCT:
             refs = self.ref_images(a.get("refs"), exclude=(iid,))
             if region == "mask" and iid in self.masks:
                 return self.qwen_masked_edit(iid, src, a.get("prompt", ""), refs, m), []
             # retouche par instruction : image 1 = image a modifier, puis les references
             names = [comfy_file(src, "dlia_src")] + refs
-            g = build_qwen(a.get("prompt", ""), random.randrange(2 ** 31), images=names, lora=m.get("lora"))
+            g = build_instruct(m, a.get("prompt", ""), random.randrange(2 ** 31), images=names)
             out = Image.open(comfy_run(g)).convert("RGB")
             return self.add_image(out, "gen", a.get("prompt", ""), parent=iid), []
         mask = None

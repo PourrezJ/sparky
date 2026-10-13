@@ -155,14 +155,13 @@ def _switch(mid):
                 pass
             switch["eta"] = 25
             _step(f"Charge {m['label']}")
-            if m.get("engine") == "qwen21":
-                switch["eta"] = 60
-                warm = harness.build_qwen("warmup", 1, size=(256, 256), lora=m.get("lora"), steps=1)
-                warm["20"] = {"class_type": "PreviewImage", "inputs": {"images": ["9", 0]}}
+            if m.get("engine") in harness.INSTRUCT:
+                switch["eta"] = 60 if m.get("engine") == "qwen21" else 20
+                warm = harness.build_instruct(m, "warmup", 1, size=(256, 256), steps=1)
             else:
                 warm = harness.build_graph("warmup", "", 1, size=(256, 256))
                 warm["10"]["inputs"]["steps"] = 1
-                warm["20"] = {"class_type": "PreviewImage", "inputs": {"images": ["11", 0]}}
+            warm["20"] = {"class_type": "PreviewImage", "inputs": {"images": warm["20"]["inputs"]["images"]}}
             with harness.busy("image"):
                 harness._comfy_run(warm)  # premiere image minuscule : force le chargement du checkpoint
         harness.SETTINGS["llm" if m["kind"] == "llm" else "ckpt"] = mid if m["kind"] == "llm" else m["ckpt"]
