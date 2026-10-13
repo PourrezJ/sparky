@@ -1,7 +1,7 @@
-r"""Chemins de Defend Local IA.
+r"""Sparky paths.
 
-Par defaut tout vit dans le dossier du projet (runtime\, models\, data\). Un fichier config.json
-a la racine du projet peut pointer vers une installation existante, par exemple :
+By default everything lives in the project folder (runtime\, models\, data\). A config.json file
+at the project root can point to an existing installation, for example:
   {"comfy_dir": "D:\\ComfyUI", "llama_server": "D:\\llama\\llama-server.exe", "llm_dir": "D:\\models"}
 """
 import json, os
@@ -9,8 +9,9 @@ import json, os
 APP = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(APP)
 _cfg = {}
-if os.path.exists(os.path.join(ROOT, "config.json")):
-    _cfg = json.load(open(os.path.join(ROOT, "config.json"), encoding="utf-8-sig"))
+CONFIG_FILE = os.environ.get("SPARKY_CONFIG") or os.path.join(ROOT, "config.json")  # SPARKY_CONFIG: alternate config
+if os.path.exists(CONFIG_FILE):
+    _cfg = json.load(open(CONFIG_FILE, encoding="utf-8-sig"))
 
 
 def _p(key, default):

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Defend Local IA</title>
+<title>Sparky</title>
 <link rel="icon" href="/logo.svg" type="image/svg+xml">
 <style>
 :root{--bg:#212121;--side:#171717;--bub:#303030;--hov:#2a2a2a;--line:#383838;--txt:#ececec;--mut:#9b9b9b;--dim:#6b6b6b;--ok:#3ecf8e;--warn:#f5b84b;--bad:#ff6b6b;--blue:#5aa9ff}
@@ -323,7 +323,7 @@ body.artlive #artLive{display:flex}
 <body>
 <aside id="side">
   <div class="top">
-    <div class="brand"><img src="/logo.svg" alt=""><div><b>Defend Local <em>IA</em></b><small>100 % local · privé</small></div></div>
+    <div class="brand"><img src="/logo.svg" alt=""><div><b>Spark<em>y</em></b><small>100 % local · privé</small></div></div>
     <span class="sp"></span>
     <button class="ib" id="close" title="Fermer la barre latérale"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
     <button class="ib" id="new" title="Nouvelle conversation"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
@@ -380,7 +380,7 @@ body.artlive #artLive{display:flex}
         <button id="send" title="Envoyer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
       </div>
     </div>
-    <div id="hint">Defend Local IA · tout tourne sur ta machine, rien n'est envoyé sur Internet.</div>
+    <div id="hint">Sparky · tout tourne sur ta machine, rien n'est envoyé sur Internet.</div>
   </footer>
 </div>
 <aside id="art">
@@ -398,6 +398,7 @@ body.artlive #artLive{display:flex}
 </aside>
 <div id="set"><div class="card">
   <h3>Paramètres</h3>
+  <div class="f"><label>Langue</label><select id="langSel"><option value="en">English</option><option value="fr">Français</option></select></div>
   <div class="f"><label>Système</label><div class="sysline"><span id="sysSum">…</span><button id="sysAgain">Relancer l'analyse</button><button id="sysOpen">Détail</button></div></div>
   <div class="f"><label>Assistant</label><div class="sel"><select id="llmSel"></select><span class="ind" id="llmInd"></span></div></div>
   <div class="f"><label>Niveau de réflexion</label><div class="seg" id="thkSet"></div></div>
@@ -413,7 +414,7 @@ body.artlive #artLive{display:flex}
 </div></div>
 <div id="pick"></div>
 <div id="welc"><div class="card">
-  <div class="hd"><img src="/logo.svg" alt=""><div><h2 id="wT">Bienvenue dans Defend Local IA</h2><p id="wP">Ton assistant IA privé : tout tourne sur cette machine.</p></div></div>
+  <div class="hd"><img src="/logo.svg" alt=""><div><h2 id="wT">Bienvenue dans Sparky</h2><p id="wP">Ton assistant IA privé : tout tourne sur cette machine.</p></div></div>
   <div id="wSys"><div class="mute">Analyse de ta machine…</div></div>
   <div id="wRec"></div>
   <div class="acts"><button id="wAgain">Relancer l'analyse</button><button id="wLib">Voir tous les modèles</button><button id="wInst" class="go">Installer les recommandés</button><button id="wOk" class="go">Continuer</button></div>
@@ -436,6 +437,109 @@ body.artlive #artLive{display:flex}
   <div id="edst"><div id="edwrap"><canvas id="cv"></canvas><canvas id="mk"></canvas></div></div>
 </div>
 <script>
+// ---------- langue de l'interface : le texte source est en français, traduit à l'affichage en anglais
+let LANG='en';try{LANG=localStorage.getItem('sparky.lang')||'en'}catch{}
+document.documentElement.lang=LANG;
+const EN={
+ '100 % local · privé':'100% local · private','Conversation éphémère':'Temporary chat','éphémère':'temporary','Paramètres':'Settings','Conversations':'Chats',
+ 'Mém.':'Mem.','Bibliothèque de modèles':'Model library','Bibliothèque de modèles…':'Model library…','Tous':'All','Installés':'Installed','Assistants':'Assistants',
+ 'Images':'Images','Voix':'Voice','voix':'voice','Recommandés':'Recommended','Nom':'Name','Taille':'Size','Sur Hugging Face':'On Hugging Face',
+ "Tape un nom dans la recherche pour trouver d'autres modèles.":'Type a name in the search box to find more models.',
+ 'Tape un nom dans la recherche pour trouver d’autres modèles.':'Type a name in the search box to find more models.',
+ "Sparky · tout tourne sur ta machine, rien n'est envoyé sur Internet.":'Sparky · everything runs on your machine, nothing is sent to the internet.',
+ 'écrit…':'writing…','Aperçu':'Preview','Système':'System',"Relancer l'analyse":'Scan again','Détail':'Details','Niveau de réflexion':'Thinking level',
+ "Modèle d'image":'Image model','Étapes de génération':'Generation steps',"Essais max de l'agent":'Max agent attempts','Annuler':'Cancel','Enregistrer':'Save',
+ 'Langue':'Language','Bienvenue dans Sparky':'Welcome to Sparky',"Ton assistant IA privé : tout tourne sur cette machine.":'Your private AI assistant: everything runs on this machine.',
+ "Ton assistant IA privé : tout tourne sur cette machine, rien n'est envoyé sur Internet.":'Your private AI assistant: everything runs on this machine, nothing is sent to the internet.',
+ 'Analyse du système':'System scan','Ce que ta machine peut faire tourner, et les modèles conseillés.':'What your machine can run, and the recommended models.',
+ 'Analyse de ta machine…':'Scanning your machine…','Analyse en cours…':'Scanning…','Voir tous les modèles':'See all models','Installer les recommandés':'Install recommended',
+ 'Continuer':'Continue','Fermer':'Close','Dépose tes images':'Drop your images here','Peins la zone à modifier':'Paint the area to change',
+ 'Fermer la barre latérale':'Close sidebar','Nouvelle conversation':'New chat',"Rien n'est enregistré":'Nothing is saved','Ouvrir la barre latérale':'Open sidebar',
+ "Modèle d'image (ComfyUI)":'Image model (ComfyUI)','Processeur':'Processor','Calcul GPU':'GPU compute','Mémoire':'Memory','Rechercher un modèle…':'Search models…',
+ 'Vitesse sur cette machine':'Speed on this machine','Qualité':'Quality','Joindre des images':'Attach images','Demande ce que tu veux':'Ask anything',
+ 'Arrêter et transcrire':'Stop and transcribe','Dicter (hors ligne)':'Dictate (offline)','Envoyer':'Send','Glisser pour redimensionner':'Drag to resize',
+ 'Copier le code':'Copy code','Télécharger':'Download','Ouvrir dans un nouvel onglet':'Open in a new tab','Pinceau':'Brush','Gomme':'Eraser','Tout effacer':'Clear all',
+ 'Supprimer':'Delete','Peindre une zone à modifier':'Paint an area to change','Citer dans le message':'Quote in message','Supprimer les fichiers':'Delete files',
+ 'Installer':'Install','Utiliser':'Use','actif':'active','installé':'installed','recommandé':'recommended','recommandé pour ta machine':'recommended for your machine',
+ "Comment puis-je t'aider ?":'How can I help?','Pose une question, envoie des images, demande une création.':'Ask a question, share images, or ask me to create something.',
+ 'hors ligne':'offline','prêt':'ready','réfléchit…':'thinking…','vérifie le résultat…':'checking the result…','termine la demande précédente…':'finishing the previous request…',
+ 'Génère une image':'Generating an image','Retouche':'Editing','détails':'details','envoi…':'sending…','envoyé':'sent','reçu':'received','lu':'read',
+ 'Réflexion':'Thinking','Copier':'Copy','Copié ✓':'Copied ✓','Ouvrir':'Open','Ouvrir ›':'Open ›','Version':'Version',
+ 'Désactivée':'Off','Légère':'Light','Normale':'Normal','Approfondie':'Deep','plus haut = plus lent, plus réfléchi':'higher = slower, more thoughtful',
+ 'non disponible pour ce modèle':'not available for this model','Aucun modèle installé':'No model installed','Libère la mémoire':'Freeing memory',
+ "Décharge l'ancien modèle d'image":'Unloading the previous image model','chargement trop long':'loading took too long',
+ 'peut réfléchir avant de répondre':'can think before answering','voit les images':'sees images','vitesse ici':'speed here','qualité':'quality','mémoire':'memory','réflexion':'thinking',
+ 'léger : tient avec l’assistant':'light: fits alongside the assistant','lourd : partage la mémoire avec l’assistant (plus lent si les deux tournent)':'heavy: shares memory with the assistant (slower when both run)',
+ 'tient en mémoire avec la génération d’images':'fits in memory alongside image generation','juste : la génération d’images devra décharger le modèle':'tight: image generation will have to unload the model',
+ 'trop gros pour cette machine':'too big for this machine','Aucun modèle installé ou connu ne correspond. Regarde sur Hugging Face plus bas.':'No installed or known model matches. Look on Hugging Face below.',
+ 'Rien trouvé sur Hugging Face.':'Nothing found on Hugging Face.','Lecture des fichiers…':'Reading files…','pas de vision : ne verra pas les images':"no vision: won't see images",
+ 'Excellente':'Excellent','Bonne':'Good','Correcte':'Fair','Limitée':'Limited','niveau':'level','Pas de GPU NVIDIA':'No NVIDIA GPU','Disque':'Disk','aucun détecté':'none detected',
+ 'Niveau de ta machine :':'Your machine level:','Aucun modèle recommandé pour cette machine.':'No recommended model for this machine.','échec, réessaie':'failed, try again',
+ 'Dictée vocale':'Voice dictation','Dictée vocale prête : clique sur le micro.':'Voice dictation ready: click the mic.',"Impossible de changer de modèle maintenant.":"Can't switch models right now.",
+ "Aucun assistant n'est installé : ouvre Paramètres > Bibliothèque de modèles.":'No assistant is installed: open Settings > Model library.',
+ "aucun modèle d'image n'est installé : ouvre Paramètres > Bibliothèque de modèles":'no image model is installed: open Settings > Model library',
+ "le modèle n'a pas pu se charger (mémoire insuffisante ?)":"the model couldn't load (not enough memory?)","modèle en cours d'utilisation":'model in use',
+ 'ajuste la langue…':'adjusting the language…','affine le visage…':'refining the face…','réflexion trop longue, réponse directe…':'thinking too long, answering directly…',
+ 'le modèle tournait en boucle, nouvel essai…':'the model was looping, trying again…',"C'est prêt, regarde le panneau à droite.":"It's ready, see the panel on the right.",
+ // descriptions du catalogue
+ 'Le plus intelligent (GPQA 89) et le meilleur en code ; 2x plus rapide avec MTP.':'The smartest (GPQA 89) and best at code; 2x faster with MTP.',
+ 'Meilleur généraliste rapide (GPQA 84) ; demande beaucoup de mémoire.':'Best fast all-rounder (GPQA 84); needs a lot of memory.',
+ 'Google. Très rapide et polyvalent (GPQA 82).':'Google. Very fast and versatile (GPQA 82).',
+ 'OpenAI. Le plus rapide ; bon raisonnement, moins de culture. Ne voit pas les images.':'OpenAI. The fastest; good reasoning, less general knowledge. No vision.',
+ 'NVIDIA. Rapide, répond bien sans réfléchir ; ne voit pas les images.':'NVIDIA. Fast, answers well without thinking; no vision.',
+ 'Le meilleur petit modèle (GPQA 82) : économe et bon en français.':'The best small model (GPQA 82): efficient, good in many languages.',
+ 'Google. Léger et équilibré.':'Google. Light and balanced.','Minuscule mais solide (GPQA 76) ; très rapide, tourne même sans GPU.':'Tiny but solid (GPQA 76); very fast, even runs without a GPU.',
+ 'Google. Pour les petites machines.':'Google. For small machines.','Images en ~3 s : rapide, texte lisible, retouche par instruction.':'Images in ~3 s: fast, readable text, edits by instruction.',
+ 'Le plus réaliste (~35 s par image), retouche par instruction.':'The most realistic (~35 s per image), edits by instruction.',
+ 'Photo réaliste (SDXL), léger.':'Photorealistic (SDXL), light.','Illustration, anime, BD (SDXL).':'Illustration, anime, comics (SDXL).',
+ 'Dictée vocale hors ligne, très précise (99 langues).':'Offline voice dictation, very accurate (99 languages).','Dictée vocale légère, pour les machines sans GPU.':'Light voice dictation, for machines without a GPU.',
+ "Pas de GPU NVIDIA compatible : la génération d'images serait très lente, elle n'est pas recommandée.":"No compatible NVIDIA GPU: image generation would be very slow, so it isn't recommended.",
+ "Sans GPU NVIDIA, l'assistant tourne sur le processeur : choisis un petit modèle.":'Without an NVIDIA GPU the assistant runs on the processor: pick a small model.',
+};
+const EN_RX=[
+ [/^Chargement de (.+)$/,'Loading $1'],[/^(.+) est prêt$/,'$1 is ready'],[/^Échec : (.+) — réessayer$/,'Failed: $1 — retry'],[/^Échec : (.+)$/,'Failed: $1'],
+ [/^Décharge (.+)$/,'Unloading $1'],[/^Charge (.+)$/,'Loading $1'],
+ [/^Retouche #(\d+)$/,'Editing #$1'],[/^zone peinte sur #(\d+)$/,'area painted on #$1'],[/^Réflexion en cours… (\d+) s$/,'Thinking… $1 s'],[/^Réflexion · (\d+) s$/,'Thought for $1 s'],
+ [/^écriture en cours… (\d+) lignes$/,'writing… $1 lines'],[/^Extrait (.*)$/,'Snippet $1'],[/^prêt · (\d+) en file$/,'ready · $1 queued'],
+ [/^(\d+) installés · (\d+) disponibles$/,'$1 installed · $2 available'],[/^Installer les recommandés \((\d+) Go\)$/,'Install recommended ($1 GB)'],[/^Installer \((\d+) Go\)$/,'Install ($1 GB)'],
+ [/^(rapide|correct|lent) sur ta machine · ~(\d+) mots\/s \((mesuré|estimé)\)$/,(m,a,b,c)=>({rapide:'fast',correct:'ok',lent:'slow'}[a])+' on your machine · ~'+b+' tok/s ('+(c==='mesuré'?'measured':'estimated')+')'],
+ [/^(rapide|correct|lent) sur ta machine · ~([\d.]+) s par image \((mesuré|estimé)\)$/,(m,a,b,c)=>({rapide:'fast',correct:'ok',lent:'slow'}[a])+' on your machine · ~'+b+' s per image ('+(c==='mesuré'?'measured':'estimated')+')'],
+ [/^qualité (\d)\/5( \(estimée\))?$/,(m,a,b)=>'quality '+a+'/5'+(b?' (estimated)':'')],
+ [/^Recherche « (.+) »…$/,'Searching "$1"…'],[/^Aucun fichier utilisable \((.+)\)\.$/,(m,a)=>'No usable file ('+(a==='GGUF'?'GGUF':'single-file SDXL checkpoint')+').'],
+ [/^vision incluse \(([\d.]+) Go en plus\)$/,'vision included ($1 GB extra)'],[/^Erreur : (.+)$/,'Error: $1'],[/^Hugging Face injoignable : (.+)$/,'Hugging Face unreachable: $1'],
+ [/^Message non envoyé : (.+)$/,'Message not sent: $1'],[/^assistant indisponible : (.+)$/,'assistant unavailable: $1'],[/^localise « (.+) » sur #(\d+)…$/,'locating "$1" on #$2…'],
+ [/^Analysé le (.+)$/,'Scanned on $1'],[/^([\d.]+) Go utilisables pour les modèles$/,'$1 GB usable for models'],[/^([\d.]+) Go libres$/,'$1 GB free'],
+ [/^Espace disque faible : (\d+) Go libres pour ~(\d+) Go de modèles recommandés\.$/,'Low disk space: $1 GB free for ~$2 GB of recommended models.'],
+ [/^Téléchargement de la dictée vocale… (\d+) %$/,'Downloading voice dictation… $1%'],[/^Téléchargement (\d+) %$/,'Downloading $1%'],[/^Échec du téléchargement : (.+)$/,'Download failed: $1'],
+ [/^Télécharger la vision \(([\d.]+) Go\) pour que ce modèle voie les images$/,'Download vision ($1 GB) so this model can see images'],
+ [/^téléchargement incomplet : (.+)$/,'incomplete download: $1'],[/^transcription impossible : (.+)$/,'transcription failed: $1'],
+ [/^Supprimer « (.+) » \?\nSes images seront effacées\.$/,'Delete "$1"?\nIts images will be erased.'],
+ [/^Supprimer (.+) \(([\d.]+) Go\) du disque \?\nTu pourras le retélécharger depuis la bibliothèque\.$/,'Delete $1 ($2 GB) from disk?\nYou can download it again from the library.'],
+ [/^La dictée vocale est en cours de téléchargement \((\d+) %\)\.$/,'Voice dictation is downloading ($1%).'],
+ [/^La dictée vocale fonctionne hors ligne avec (.+) \(([\d.]+) Go à télécharger une seule fois\)\.\nLe télécharger maintenant \?$/,'Voice dictation works offline with $1 ($2 GB, downloaded once).\nDownload it now?'],
+ [/^Micro inaccessible : ([\s\S]+)\nAutorise le micro pour cette page \(icône à gauche de l’adresse\)\.$/,'Microphone unavailable: $1\nAllow the microphone for this page (icon left of the address bar).'],
+ [/^Dictée : (.+)$/,'Dictation: $1'],
+];
+const EN_PH=[['Mémoire unifiée (CPU + GPU partagent la même mémoire)','Unified memory (CPU + GPU share the same memory)'],[' — GPU alloué : ',' — GPU allocated: '],
+ [' · RAM système : ',' · System RAM: '],[' cœurs',' cores'],['Calcul GPU','GPU compute'],['Processeur','Processor'],[' (unifiée avec le GPU)',' (unified with the GPU)'],
+ [' · niveau ',' · level '],[' mots/s',' tok/s'],[' s par image',' s per image'],[' (mesuré)',' (measured)'],[' (estimé)',' (estimated)']];
+function trCore(t){if(EN[t]!=null)return EN[t];
+  for(const[re,rep]of EN_RX){const m=t.match(re);if(m)return typeof rep==='function'?rep(...m):rep.replace(/\$(\d)/g,(_,i)=>trCore(m[i]??''))}
+  if(t.includes(' · ')){const p=t.split(' · ');const q=p.map(x=>trCore(x.trim()));if(q.some((x,i)=>x!==p[i].trim()))return q.join(' · ')}
+  let o=t;for(const[a,b]of EN_PH)o=o.split(a).join(b);return o.replace(/(\d)\s?Go\b/g,'$1 GB')}
+function tr(s){if(LANG!=='en'||s==null)return s;const str=String(s),t=str.trim();if(!t)return s;const r=trCore(t);return r===t?str:str.replace(t,r)}
+// tout ce qui s'affiche est traduit, sauf le contenu des conversations et le code
+const NOTR='#log .u .t,#log .a>.t,#log .think,#log .rs .bd,#log .step code,#artB,#artT,.cv>span,pre,code';
+function trText(n){const p=n.parentElement;if(!p||p.closest(NOTR))return;const v=tr(n.nodeValue);if(v!==n.nodeValue)n.nodeValue=v}
+function trAttrs(e){for(const a of ['title','placeholder']){const v=e.getAttribute&&e.getAttribute(a);if(v){const w=tr(v);if(w!==v)e.setAttribute(a,w)}}}
+function trTree(root){if(LANG!=='en')return;if(root.nodeType===3)return trText(root);if(root.nodeType!==1||root.closest(NOTR))return;
+  trAttrs(root);root.querySelectorAll('[title],[placeholder]').forEach(e=>{if(!e.closest(NOTR))trAttrs(e)});
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let n;while((n=w.nextNode()))trText(n)}
+if(LANG==='en'){trTree(document.body);new MutationObserver(ms=>{for(const m of ms){if(m.type==='characterData')trText(m.target);
+  else if(m.type==='attributes')trAttrs(m.target);else m.addedNodes.forEach(trTree)}}).observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['title','placeholder']})}
+const _alert=window.alert.bind(window),_confirm=window.confirm.bind(window);window.alert=m=>_alert(tr(m));window.confirm=m=>_confirm(tr(m));
+function setLang(l){try{localStorage.setItem('sparky.lang',l)}catch{}fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings:{ui_lang:l}})}).then(()=>location.reload())}
+
 const $=id=>document.getElementById(id), log=$('log'), sc=$('scroll'), ta=$('msg');
 const HELLO='<div id="hello"><img src="/logo.svg" alt=""><h2>Comment puis-je t\'aider ?</h2><p>Pose une question, envoie des images, demande une création.</p></div>';
 const SVG={
@@ -468,7 +572,7 @@ function mdx(s){let out='',k=0;const re=/```([\w+#.-]*)[^\n]*\n([\s\S]*?)(```|$)
 document.addEventListener('click',e=>{const c=e.target.closest('[data-copy]'),o=e.target.closest('[data-open]');
   if(c){navigator.clipboard.writeText(CODES[+c.dataset.copy].code);c.textContent='Copié ✓';setTimeout(()=>c.textContent='Copier',1500)}
   if(o){const x=CODES[+o.dataset.open],id='extrait-'+o.dataset.open;ARTS[id]={title:'Extrait '+x.lang.toUpperCase(),kind:x.lang==='svg'?'svg':'html',language:x.lang,versions:[x.code]};openArt(id)}});
-const hhmm=ts=>new Date(ts?ts*1000:Date.now()).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+const hhmm=ts=>new Date(ts?ts*1000:Date.now()).toLocaleTimeString((LANG==='fr'?'fr-FR':'en-US'),{hour:'2-digit',minute:'2-digit'});
 const nearBottom=()=>sc.scrollHeight-sc.scrollTop-sc.clientHeight<160;
 const down=force=>{if(force||nearBottom())requestAnimationFrame(()=>sc.scrollTop=sc.scrollHeight)};
 function imgCard(src,id,small){
@@ -476,14 +580,14 @@ function imgCard(src,id,small){
   if(id!=null&&!small){d.append(el('span','tag','#'+id));const a=el('div','acts');
     const b1=el('button','',SVG.edit);b1.title='Peindre une zone à modifier';b1.onclick=e=>{e.stopPropagation();openEditor(id)};
     const b2=el('button','',SVG.ref);b2.title='Citer dans le message';b2.onclick=e=>{e.stopPropagation();ta.value+=(ta.value?' ':'')+'#'+id+' ';upd();ta.focus()};
-    const b3=el('a','',SVG.dl);b3.title='Télécharger';b3.href=src;b3.download='defend_'+id+'.png';
+    const b3=el('a','',SVG.dl);b3.title='Télécharger';b3.href=src;b3.download='sparky_'+id+'.png';
     a.append(b1,b2,b3);d.append(a)}
   return d}
 
 // ---------- barre latérale
-function setSide(open){document.body.classList.toggle('closed',!open);try{localStorage.setItem('dlia.side',open?'1':'0')}catch{}}
+function setSide(open){document.body.classList.toggle('closed',!open);try{localStorage.setItem('sparky.side',open?'1':'0')}catch{}}
 $('close').onclick=()=>setSide(false);$('open').onclick=()=>setSide(true);
-try{if(localStorage.getItem('dlia.side')==='0'||matchMedia('(max-width:760px)').matches)setSide(false)}catch{}
+try{if(localStorage.getItem('sparky.side')==='0'||matchMedia('(max-width:760px)').matches)setSide(false)}catch{}
 async function loadList(){const l=await(await fetch('/api/sessions')).json();const box=$('list');box.innerHTML='';
   if(l.length)box.append(el('div','h','Conversations'));
   l.forEach(s=>{const d=el('div','cv'+(s.id===SID?' on':''));d.append(el('span','',esc(s.title)));
@@ -492,12 +596,12 @@ async function loadList(){const l=await(await fetch('/api/sessions')).json();con
       await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:s.id})});if(s.id===SID)blank(false);else loadList()};
     d.onclick=()=>{open_(s.id);if(matchMedia('(max-width:760px)').matches)setSide(false)};d.append(x);box.append(d)})}
 function setEph(on){EPH=on;$('eph').classList.toggle('on',on);$('ephb').style.display=on?'':'none'}
-async function open_(id){if(busy)return;SID=id;setEph(false);log.innerHTML=HELLO;T=null;resetArts();try{localStorage.setItem('dlia.sid',id)}catch{}
+async function open_(id){if(busy)return;SID=id;setEph(false);log.innerHTML=HELLO;T=null;resetArts();try{localStorage.setItem('sparky.sid',id)}catch{}
   const s=await(await fetch('/api/state?id='+encodeURIComponent(id))).json();s.events.forEach(e=>onEvent(e,false));if(T){hideTyping();T=null}down(true);loadList()}
 function blank(eph){if(busy)return;SID=null;setEph(eph);log.innerHTML=HELLO;T=null;resetArts();pend=[];mask=null;renderAtt();loadList();ta.focus()}
 $('new').onclick=$('new2').onclick=()=>blank(false);
 $('eph').onclick=()=>blank(!EPH);
-(async()=>{let id=null;try{id=localStorage.getItem('dlia.sid')}catch{}
+(async()=>{let id=null;try{id=localStorage.getItem('sparky.sid')}catch{}
   const l=await(await fetch('/api/sessions')).json();if(id&&l.some(s=>s.id===id))open_(id);else blank(false)})();
 
 // ---------- moniteur (modèles + charge)
@@ -692,7 +796,7 @@ async function send(){
   const imgs=pend.slice(),m=mask;userMsg(text,imgs,null,m?.for,null,'pending');   // affiché tout de suite
   ta.value='';pend=[];mask=null;renderAtt();upd();newTurn();
   try{
-    if(!SID){const r=await(await fetch('/api/new',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ephemeral:EPH})})).json();SID=r.id;if(!EPH){try{localStorage.setItem('dlia.sid',SID)}catch{}}}
+    if(!SID){const r=await(await fetch('/api/new',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ephemeral:EPH})})).json();SID=r.id;if(!EPH){try{localStorage.setItem('sparky.sid',SID)}catch{}}}
     const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:SID,text,images:imgs,mask:m?.data||null,maskFor:m?.for||null})});
     setTicks(lastUser,'sent');
     const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
@@ -728,7 +832,10 @@ function extras(m){return (m.kind==='llm'&&m.think?'<span class="ic" title="peut
 function inds(m){return bolts(m)+stars(m)+memi(m)+extras(m)}
 
 let SYS=null,ONB=true;
-async function loadCat(){const r=await(await fetch('/api/settings')).json();CAT=r.catalog;SET=r.settings;SYS=r.syscheck;ONB=r.onboarded;ACTIVE={llm:r.settings.llm,ckpt:r.settings.ckpt,voice:r.active.voice};return r}
+async function loadCat(){const r=await(await fetch('/api/settings')).json();CAT=r.catalog;SET=r.settings;SYS=r.syscheck;ONB=r.onboarded;ACTIVE={llm:r.settings.llm,ckpt:r.settings.ckpt,voice:r.active.voice};
+  // langue choisie à l'installation (ou sur un autre navigateur) : on s'aligne une fois
+  if(SET.ui_lang&&SET.ui_lang!==LANG&&!sessionStorage.getItem('sparky.langsync')){sessionStorage.setItem('sparky.langsync','1');try{localStorage.setItem('sparky.lang',SET.ui_lang)}catch{}location.reload()}
+  return r}
 let ACTIVE={};
 const isActive=m=>m.kind==='llm'?m.id===ACTIVE.llm:m.kind==='voice'?m.id===ACTIVE.voice:m.ckpt===ACTIVE.ckpt;
 const recTag=m=>m.recommended?'<span class="rec" title="recommandé pour ta machine">recommandé</span>':'';
@@ -853,13 +960,14 @@ function sysSummary(s){const a=s.assess;return '<b>'+esc(a.gpu||'Pas de GPU NVID
 async function openSettings(){$('set').style.display='grid';await fillModelSelects();$('steps').value=SET.steps;$('cfg').value=SET.cfg;$('maxs').value=SET.max_steps;
   $('sysSum').innerHTML=sysSummary(SYS);const cur=CAT.find(m=>m.kind==='llm'&&isActive(m));thinkSeg($('thkSet'),!!(cur&&cur.think))}
 $('openSet').onclick=openSettings;
+$('langSel').value=LANG;$('langSel').onchange=()=>setLang($('langSel').value);
 $('sysAgain').onclick=async()=>{$('sysSum').textContent='Analyse en cours…';SYS=await(await fetch('/api/syscheck',{method:'POST'})).json();$('sysSum').innerHTML=sysSummary(SYS);fillModelSelects()};
 $('sysOpen').onclick=()=>{$('set').style.display='none';showWelcome(false)};
 
 // ---------- bienvenue / analyse du système
 let welcTimer=null,welcFirst=false;
 function showWelcome(first){welcFirst=first;$('welc').style.display='grid';
-  $('wT').textContent=first?'Bienvenue dans Defend Local IA':'Analyse du système';
+  $('wT').textContent=first?'Bienvenue dans Sparky':'Analyse du système';
   $('wP').textContent=first?'Ton assistant IA privé : tout tourne sur cette machine, rien n\'est envoyé sur Internet.':'Ce que ta machine peut faire tourner, et les modèles conseillés.';
   $('wOk').textContent=first?'Continuer':'Fermer';renderWelcome()}
 async function renderWelcome(){clearTimeout(welcTimer);await loadCat();const s=SYS,a=s.assess,h=s.hw;
@@ -870,7 +978,7 @@ async function renderWelcome(){clearTimeout(welcTimer);await loadCat();const s=S
     +'<div class="tier">Niveau de ta machine : <b>'+esc(a.tier_label)+'</b><span class="bars">'+[1,2,3,4].map(i=>'<i class="'+(i<=a.tier?'on':'')+'"></i>').join('')+'</span>'
     +'<span style="color:var(--dim);font-size:12.5px">'+a.model_mem_gb.toFixed(0)+' Go utilisables pour les modèles</span></div>'
     +(s.notes||[]).map(n=>'<div class="note">'+esc(n)+'</div>').join('')
-    +'<div class="mute" style="padding-bottom:0">Analysé le '+new Date(s.ts*1000).toLocaleString('fr-FR')+'</div>';
+    +'<div class="mute" style="padding-bottom:0">Analysé le '+new Date(s.ts*1000).toLocaleString((LANG==='fr'?'fr-FR':'en-US'))+'</div>';
   const recs=['llm','image','voice'].map(k=>CAT.find(m=>m.id===s.recommended[k])).filter(Boolean);
   const box=$('wRec');box.innerHTML='<div class="recs">'+(recs.length?'':'<div class="mute">Aucun modèle recommandé pour cette machine.</div>')+recs.map(m=>{const j=m.job;
     const st=m.installed?'<span class="st ok">installé</span>':j&&j.state==='running'?'<span class="st">'+(j.total?Math.floor(j.done/j.total*100):0)+' % · '+(j.done/2**30).toFixed(1)+'/'+(j.total/2**30).toFixed(1)+' Go</span>'

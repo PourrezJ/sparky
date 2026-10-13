@@ -1,87 +1,120 @@
-<p align="center"><img src="app/logo.png" width="96" alt="Defend Local IA"></p>
+<p align="center"><img src="app/logo.png" width="96" alt="Sparky"></p>
 
-<h1 align="center">Defend Local IA</h1>
+<h1 align="center">Sparky</h1>
 
-<p align="center"><b>Ton assistant IA privé, 100 % local.</b><br>
-Discute, analyse des images, génère et retouche des visuels — sans qu'aucune donnée ne quitte ta machine.</p>
+<p align="center"><b>Your private AI assistant. 100% local.</b><br>
+Chat, see images, generate and edit pictures, build apps and dictate by voice —<br>
+everything runs on your own PC. Nothing is sent to the internet.</p>
+
+<p align="center">
+  <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6">
+  <img alt="x64 and ARM64" src="https://img.shields.io/badge/x64%20%7C%20ARM64-NVIDIA%20CUDA-76B900">
+  <img alt="100% local" src="https://img.shields.io/badge/100%25-local-8c7cf0">
+  <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-blue">
+  <img alt="English and French" src="https://img.shields.io/badge/UI-English%20%7C%20Fran%C3%A7ais-lightgrey">
+</p>
+
+<p align="center"><img src="docs/demo-artifact.gif" alt="Sparky writes a Breakout game live in the side panel, then runs it" width="900"></p>
 
 ---
 
-## Ce que ça fait
+## What it does
 
-- **Chat comme ChatGPT**, en local, avec historique des conversations et **conversations éphémères** (rien n'est enregistré).
-- **Vision** : envoie des photos, captures ou documents scannés, l'assistant les voit et les analyse.
-- **Création et retouche d'images** par simple demande ; l'agent vérifie lui-même le résultat et corrige si besoin.
-- **Panneau de code (artifacts)** : demande une appli, un jeu, une page ou un script, il s'écrit en direct dans un panneau à droite avec **aperçu exécuté**, code, versions, copie, téléchargement.
-- **Dictée vocale hors ligne** (Whisper) : micro à côté du bouton Envoyer, barres de niveau pendant que tu parles, le texte arrive dans le champ, tu relis et tu envoies.
-- **Niveau de réflexion réglable** (désactivée, légère, normale, approfondie) directement depuis le menu du modèle.
-- **Analyse du système** à l'installation, relançable dans *Paramètres > Système* : détecte GPU, mémoire et disque, puis **recommande les modèles adaptés** à ta machine.
-- **Bibliothèque de modèles** : installation en un clic, reprise automatique des téléchargements, indicateurs de vitesse, qualité et mémoire *pour ta machine*.
-- **Que des modèles officiels** (Qwen, Gemma, gpt-oss, Nemotron, Qwen-Image, SDXL…). Les variantes « uncensored », « abliterated » ou NSFW sont exclues du catalogue et de la recherche Hugging Face.
+- **Chat like ChatGPT, offline** — conversation history, plus **temporary chats** that are never saved.
+- **Code & apps panel** — ask for a game, a web page, a tool or a script: it is written live in a panel next to the chat, with a **running preview**, the code, versions, copy and download.
+- **Images** — generate and edit pictures by simply asking ("make it snow", "remove the bottle"). The agent checks its own result and retries when needed.
+- **Vision** — drop photos, screenshots or scanned documents: the assistant sees and analyses them.
+- **Voice dictation, offline** — click the mic, talk, stop: Whisper turns your voice into text right in the input box.
+- **Adjustable thinking** — Off, Light, Normal or Deep, right from the model menu.
+- **System scan** — at install time (and anytime from *Settings > System*) Sparky checks your GPU, memory and disk, then **recommends the models that fit your machine**.
+- **Model library** — one-click installs with resumable downloads, and speed / quality / memory indicators *for your hardware*.
+- **Only official models** — Qwen, Gemma, gpt-oss, Nemotron, FLUX.2, Whisper… "uncensored", "abliterated" or NSFW variants are excluded from the catalog and from the Hugging Face search.
+- **English or French** — chosen during install, switchable in the settings.
 
-## Installation (Windows 10/11)
+## Screenshots
 
-**En une ligne**, dans PowerShell :
+| | |
+|---|---|
+| <img src="docs/image-edit.png" alt="Image generation and editing"><br>**Images** — generate, then edit by instruction | <img src="docs/thinking.png" alt="Visible reasoning"><br>**Thinking** — see how the model reasoned |
+| <img src="docs/welcome.png" alt="Welcome screen with system scan"><br>**First launch** — system scan and recommended models | <img src="docs/picker.png" alt="Model menu with thinking levels"><br>**Model menu** — switch models, pick a thinking level |
+| <img src="docs/library.png" alt="Model library"><br>**Model library** — speed, quality and memory for your PC | <img src="docs/settings.png" alt="Settings"><br>**Settings** — language, system, models |
+
+<p align="center"><img src="docs/demo-image.gif" alt="Generating and editing an image" width="800"></p>
+
+<p align="center"><img src="docs/demo-voice.gif" alt="Offline voice dictation" width="800"><br><i>Offline voice dictation: live level bars, then the text lands in the input box.</i></p>
+
+## Install (Windows 10/11)
+
+**One line**, in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/anisayari/defend-local-ia/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/anisayari/sparky/main/install.ps1 | iex
 ```
 
-**Ou** télécharge le projet (bouton *Code > Download ZIP*), décompresse-le et double-clique sur `install.bat`.
+**Or** download the project (*Code > Download ZIP*), unzip it and double-click `install.bat`.
 
-L'installeur :
+The installer walks you through 7 simple steps:
 
-1. analyse la machine (GPU NVIDIA, mémoire, disque) ;
-2. installe Python 3.12 si besoin (via winget), puis PyTorch adapté au GPU ;
-3. installe le moteur d'images [ComfyUI](https://github.com/comfyanonymous/ComfyUI) et le moteur de l'assistant [llama.cpp](https://github.com/ggml-org/llama.cpp) (version CUDA si GPU NVIDIA, x64 ou ARM64) ;
-4. affiche les modèles recommandés et propose de les télécharger ;
-5. crée un raccourci **Defend Local IA** sur le Bureau et dans le menu Démarrer.
+1. choose your language (English / Français) and check your machine,
+2. pick the install folder (default `%LOCALAPPDATA%\Sparky`),
+3. install Python 3.12 if needed (via winget),
+4. install PyTorch for your GPU and the image engine [ComfyUI](https://github.com/comfyanonymous/ComfyUI),
+5. install the AI engine [llama.cpp](https://github.com/ggml-org/llama.cpp) (CUDA build for NVIDIA GPUs, x64 or ARM64),
+6. scan your hardware, show the recommended models and offer to download them,
+7. create a **Sparky** shortcut on the desktop and in the Start menu.
 
-Ensuite : double-clic sur le raccourci (ou `start.bat`). L'interface s'ouvre sur <http://127.0.0.1:7860>. Pour tout arrêter : `stop.bat`.
+<p align="center"><img src="docs/installer.png" alt="The step-by-step installer" width="560"></p>
 
-### Configuration conseillée
+Then double-click the shortcut (or `start.bat`): Sparky opens at <http://127.0.0.1:7860>. To stop everything: `stop.bat`.
 
-| Machine | Ce qui tourne bien |
+### Which machine?
+
+| Machine | Runs well |
 |---|---|
-| GPU NVIDIA 24 Go+ ou mémoire unifiée 32 Go+ | Assistants 27–35B, Qwen-Image 2.1 |
-| GPU NVIDIA 12–16 Go | Assistants 9–20B, images SDXL |
-| GPU NVIDIA 6–8 Go | Assistants 4–9B, images SDXL (plus lent) |
-| Sans GPU NVIDIA | Petits assistants (4B) sur le processeur, pas de génération d'images |
+| NVIDIA GPU 24 GB+ or 32 GB+ unified memory | 27–35B assistants, Qwen-Image 2.1 |
+| NVIDIA GPU 12–16 GB | 9–20B assistants, FLUX.2 Klein |
+| NVIDIA GPU 6–8 GB | 4–9B assistants, FLUX.2 Klein (slower) |
+| No NVIDIA GPU | small assistants (4B) on the CPU, no image generation |
 
-L'analyse du système choisit automatiquement parmi ces options.
+The system scan picks automatically among these.
 
-## Modèles du catalogue
+## Models
 
-Vitesses mesurées sur une RTX Spark N1X (Q4, pleine puissance) ; l'application les adapte à ton GPU.
+Speeds measured on an RTX Spark N1X (Q4, full power); Sparky adapts them to your GPU.
 
-| Assistant | Taille | Vitesse | GPQA publié | Vision | Usage |
+| Assistant | Size | Speed | GPQA (published) | Vision | Best for |
 |---|---|---|---|---|---|
-| gpt-oss 20B | 11 Go | 83 mots/s | 71,5 | | le plus rapide |
-| Qwen3.5 35B A3B | 21 Go | 74 mots/s | 84,2 | ✓ | meilleur généraliste rapide |
-| Nemotron 3.5 Lightning 30B | 24 Go | 74 mots/s | 75,4 | | rapide sans réflexion |
-| Qwen3.5 4B | 3 Go | 66 mots/s | 76,2 | ✓ | minuscule, même sans GPU |
-| Gemma 4 26B A4B | 17 Go | 62 mots/s | 82,3 | ✓ | rapide et polyvalent |
-| Qwen3.5 9B | 6 Go | 34 mots/s | 81,7 | ✓ | meilleur petit modèle |
-| Gemma 4 12B | 7 Go | 34 mots/s | 78,8 | ✓ | léger |
-| Qwen3.8 27B | 16 Go | 16 (33 avec MTP) | 89,2 | ✓ | le plus intelligent, code |
-| Gemma 4 E4B | 6 Go | – | – | ✓ | petites machines |
+| gpt-oss 20B | 11 GB | 83 tok/s | 71.5 | | fastest |
+| Qwen3.5 35B A3B | 21 GB | 74 tok/s | 84.2 | ✓ | best fast all-rounder |
+| Nemotron 3.5 Lightning 30B | 24 GB | 74 tok/s | 75.4 | | fast without thinking |
+| Qwen3.5 4B | 3 GB | 66 tok/s | 76.2 | ✓ | tiny, even without a GPU |
+| Gemma 4 26B A4B | 17 GB | 62 tok/s | 82.3 | ✓ | fast and versatile |
+| Qwen3.5 9B | 6 GB | 34 tok/s | 81.7 | ✓ | best small model |
+| Gemma 4 12B | 7 GB | 34 tok/s | 78.8 | ✓ | light |
+| Qwen3.8 27B | 16 GB | 16 (33 with MTP) | 89.2 | ✓ | smartest, best at code |
+| Gemma 4 E4B | 6 GB | – | – | ✓ | small machines |
 
-Tous peuvent réfléchir avant de répondre (niveau réglable). La vision s'ajoute en un clic si elle manque.
+All of them can think before answering (adjustable level). Vision can be added in one click when it is missing.
 
-| Images | Taille | Temps par image | Style |
+| Images | Size | Time per image | Style |
 |---|---|---|---|
-| FLUX.2 Klein 4B | 7 Go | ~3 s | photo, texte lisible, retouche par instruction |
-| Qwen-Image 2.1 | 16 Go | ~35 s | le plus réaliste, retouche par instruction |
-| Juggernaut XL v9 | 10 Go* | ~15 s | photo (SDXL) |
-| Animagine XL 4.0 | 10 Go* | ~15 s | illustration (SDXL) |
+| FLUX.2 Klein 4B | 7 GB | ~3 s | photo, readable text, edits by instruction |
+| Qwen-Image 2.1 | 16 GB | ~35 s | most realistic, edits by instruction |
+| Juggernaut XL v9 | 10 GB* | ~15 s | photo (SDXL) |
+| Animagine XL 4.0 | 10 GB* | ~15 s | illustration (SDXL) |
 
-\* inclut les fichiers IP-Adapter (≈ 4 Go, partagés entre les modèles SDXL) qui permettent de réutiliser un personnage ou un style.
+| Voice | Size | Note |
+|---|---|---|
+| Whisper large-v3 turbo | 1.6 GB | very accurate, 99 languages (GPU) |
+| Whisper base | 0.3 GB | light, for machines without a GPU |
 
-Chaque modèle reste soumis à sa propre licence (Apache 2.0, Gemma Terms of Use, NVIDIA Open Model License, etc.) : vérifie-la sur sa page Hugging Face avant un usage commercial.
+\* includes the IP-Adapter files (≈ 4 GB, shared by all SDXL models) used to reuse a character or a style.
 
-## Installation existante (ComfyUI / llama.cpp déjà présents)
+Every model keeps its own license (Apache 2.0, Gemma Terms of Use, NVIDIA Open Model License, etc.): check its Hugging Face page before any commercial use.
 
-Crée un fichier `config.json` à la racine du projet pour réutiliser tes dossiers :
+## Existing installation (ComfyUI / llama.cpp already installed)
+
+Create a `config.json` file at the project root to reuse your folders:
 
 ```json
 {
@@ -93,39 +126,47 @@ Crée un fichier `config.json` à la racine du projet pour réutiliser tes dossi
 }
 ```
 
-Autres clés possibles : `data_dir`, `app_port` (7860), `llm_port` (8080), `comfy_port` (8188).
+Other keys: `voice_dir`, `data_dir`, `app_port` (7860), `llm_port` (8080), `comfy_port` (8188). The `SPARKY_CONFIG` environment variable can point to another config file.
 
-## En ligne de commande
+## Command line
 
 ```powershell
-runtime\venv\Scripts\python.exe app\syscheck.py                  # analyse du système
-runtime\venv\Scripts\python.exe app\models_cli.py --list         # catalogue
-runtime\venv\Scripts\python.exe app\models_cli.py --recommended  # installe les modèles conseillés
-runtime\venv\Scripts\python.exe app\models_cli.py qwen359        # installe un modèle précis
+runtime\venv\Scripts\python.exe app\syscheck.py                  # system scan (add --lang=fr for French)
+runtime\venv\Scripts\python.exe app\models_cli.py --list         # catalog
+runtime\venv\Scripts\python.exe app\models_cli.py --recommended  # install the recommended models
+runtime\venv\Scripts\python.exe app\models_cli.py qwen359        # install one model
 ```
 
-## Mise à jour / désinstallation
+## Update / uninstall
 
-- **Mettre à jour** : relance la commande d'installation (ou `git pull` dans le dossier).
-- **Désinstaller** : `stop.bat`, puis supprime le dossier d'installation (`%LOCALAPPDATA%\DefendLocalIA` par défaut) et les raccourcis.
+- **Update**: run the install command again (or `git pull` in the install folder).
+- **Uninstall**: `stop.bat`, then delete the install folder (`%LOCALAPPDATA%\Sparky` by default) and the shortcuts.
 
-## Vie privée
+## Privacy
 
-Tout s'exécute sur ta machine : les conversations, les images et les modèles restent dans le dossier d'installation (`data\`, `models\`). Les seules connexions sortantes servent à télécharger les outils et les modèles (GitHub, PyPI, Hugging Face), et à la recherche de modèles dans la bibliothèque.
+Everything runs on your machine: conversations, images and models stay in the install folder (`data\`, `models\`). The only outgoing connections download the tools and models (GitHub, PyPI, Hugging Face) and search the model library.
 
-## Structure
+## En français
+
+L'interface et l'installeur existent aussi en français : choisis *Français* au début de l'installation, ou change la langue dans *Paramètres*.
+
+<p align="center"><img src="docs/french.png" alt="Sparky en français" width="760"></p>
+
+## Project layout
 
 ```
 app/
-  server.py     serveur web + gestion des modèles
-  harness.py    agent : boucle assistant <-> outils d'image
-  catalog.py    catalogue, téléchargements, indicateurs
-  syscheck.py   analyse du système et recommandations
-  index.html    interface
-install.ps1     installation
+  server.py     web server + model management
+  harness.py    agent: assistant <-> image tools loop, artifacts
+  catalog.py    catalog, downloads, indicators
+  syscheck.py   system scan and recommendations
+  stt.py        offline voice dictation (Whisper)
+  index.html    interface (English / French)
+install.ps1     step-by-step installer
 start.ps1 / stop.ps1
+docs/           screenshots and demos
 ```
 
-## Licence
+## License
 
-Code sous licence [MIT](LICENSE). ComfyUI (GPL-3.0) et llama.cpp (MIT) sont téléchargés séparément à l'installation.
+Code under the [MIT](LICENSE) license. ComfyUI (GPL-3.0) and llama.cpp (MIT) are downloaded separately during install.

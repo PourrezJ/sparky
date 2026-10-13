@@ -1,4 +1,4 @@
-# Lance Defend Local IA (serveur + ComfyUI + assistant) et ouvre l'interface dans le navigateur.
+# Starts Sparky (server + ComfyUI + assistant) and opens the UI in the browser.
 $Root = $PSScriptRoot
 $cfg = @{}
 if (Test-Path "$Root\config.json") { (Get-Content "$Root\config.json" -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $cfg[$_.Name] = $_.Value } }
@@ -6,7 +6,7 @@ $port = if ($cfg.app_port) { $cfg.app_port } else { 7860 }
 $py = if ($cfg.python) { $cfg.python } else { "$Root\runtime\venv\Scripts\python.exe" }
 if (-not (Test-Path $py)) {
   Add-Type -AssemblyName PresentationFramework
-  [System.Windows.MessageBox]::Show("Python introuvable ($py). Lance d'abord install.ps1.", 'Defend Local IA') | Out-Null
+  [System.Windows.MessageBox]::Show("Python not found ($py). Run install.ps1 first.", 'Sparky') | Out-Null
   exit 1
 }
 function Up { try { (New-Object Net.Sockets.TcpClient('127.0.0.1', $port)).Close(); $true } catch { $false } }

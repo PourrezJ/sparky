@@ -1,8 +1,8 @@
-"""Catalogue des modeles : installation (telechargement repris en cas de coupure), estimation de
-vitesse sur cette machine (d'apres l'analyse systeme) et indicateurs (qualite, memoire, vision, reflexion).
+"""Model catalog: installation (download resumed after interruptions), speed estimate
+on this machine (from the system scan) and indicators (quality, memory, vision, thinking).
 
-Le catalogue ne propose que des modeles officiels ou largement utilises ; les variantes "uncensored",
-"abliterated", NSFW, etc. sont exclues, y compris de la recherche Hugging Face.
+The catalog only offers official or widely used models; "uncensored",
+"abliterated", NSFW, etc. variants are excluded, including from Hugging Face search.
 """
 import json, os, re, subprocess, threading, time, urllib.request
 
@@ -10,15 +10,15 @@ import config
 
 HF = "https://huggingface.co/{repo}/resolve/main/{file}"
 M, P, CM = config.LLM_DIR, config.MMPROJ_DIR, config.COMFY_MODELS
-REF_BW = 230.0  # bande passante (Go/s) de la machine du benchmark (RTX Spark) : ref_tps y a ete mesure
+REF_BW = 230.0  # bandwidth (GB/s) of the benchmark machine (RTX Spark): ref_tps was measured there
 
 
 def _first(*paths):
-    """Premier chemin existant (anciens noms de fichiers acceptes), sinon le premier (nom canonique)."""
+    """First existing path (old file names accepted), otherwise the first one (canonical name)."""
     return next((p for p in paths if os.path.exists(p)), paths[0])
 
 
-# brouillon MTP optionnel : double la vitesse de Qwen3.8 27B (mesure : 16 -> 33 mots/s)
+# optional MTP draft: doubles Qwen3.8 27B speed (measured: 16 -> 33 words/s)
 MTP = _first(os.path.join(M, "mtp-Qwen3.8-27B-Q4_0.gguf"), os.path.join(os.path.dirname(M), "mtp", "mtp-Qwen3.8-27B-Q4_0.gguf"))
 BLOCKED = ("uncensor", "abliterat", "heretic", "nsfw", "lustify", "pony", "unfilter", "unaligned", "jailbreak",
            "erotic", "porn", "hentai", "lewd", "nude", "xxx", "18+", "hauhau", "dolphin", "not-for-all-audiences")
@@ -31,8 +31,8 @@ def blocked(*texts):
 
 
 def llm(id, label, quality, repo, file, mmproj, size_gb, active_gb=None, think=True, desc="", ref_tps=None, alt=()):
-    """mmproj : fichier de vision dans le meme depot (None = modele qui ne voit pas les images).
-    ref_tps : vitesse mesuree sur la machine du benchmark ; alt : autres noms locaux acceptes."""
+    """mmproj: vision file in the same repo (None = model that cannot see images).
+    ref_tps: speed measured on the benchmark machine; alt: other accepted local names."""
     stem = repo.split("/")[-1].replace("-GGUF", "")
     main = _first(os.path.join(M, file), *[os.path.join(M, a) for a in alt])
     vis = _first(os.path.join(P, f"mmproj-{stem}-F16.gguf"), os.path.join(P, f"mmproj-{stem.replace('-it', '')}-F16.gguf"))
@@ -42,7 +42,7 @@ def llm(id, label, quality, repo, file, mmproj, size_gb, active_gb=None, think=T
 
 
 IPA = "h94/IP-Adapter"
-IPADAPTER = [  # references personnage / style pour SDXL, partagees entre tous les modeles SDXL
+IPADAPTER = [  # character / style references for SDXL, shared by all SDXL models
     (IPA, "sdxl_models/ip-adapter-plus_sdxl_vit-h.safetensors", os.path.join(CM, "ipadapter", "ip-adapter-plus_sdxl_vit-h.safetensors")),
     (IPA, "sdxl_models/ip-adapter-plus-face_sdxl_vit-h.safetensors", os.path.join(CM, "ipadapter", "ip-adapter-plus-face_sdxl_vit-h.safetensors")),
     (IPA, "models/image_encoder/model.safetensors", os.path.join(CM, "clip_vision", "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"))]
@@ -67,13 +67,13 @@ def qwen_image(id, label, quality, desc=""):
 
 
 def klein():
-    """FLUX.2 Klein 4B : 3 s par image au benchmark, comprend les phrases et retouche par instruction."""
+    """FLUX.2 Klein 4B: 3 s per image in the benchmark, understands sentences and edits by instruction."""
     try:
         gpu = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"], capture_output=True,
                              text=True, timeout=10, creationflags=NOWIN).stdout.lower()
     except Exception:
         gpu = ""
-    # encodeur en FP4 sur les GPU Blackwell (RTX 50, Spark), FP8 ailleurs
+    # FP4 encoder on Blackwell GPUs (RTX 50, Spark), FP8 elsewhere
     te = "qwen_3_4b_fp4_mixed.safetensors" if any(k in gpu for k in ("spark", "gb10", "rtx 50", " 50")) else "qwen_3_4b_fp8_mixed.safetensors"
     files = [("black-forest-labs/FLUX.2-klein-4b-fp8", "flux-2-klein-4b-fp8.safetensors", os.path.join(CM, "diffusion_models", "flux-2-klein-4b-fp8.safetensors")),
              ("Comfy-Org/z_image_turbo", "split_files/text_encoders/" + te, os.path.join(CM, "text_encoders", te)),
@@ -89,14 +89,14 @@ WHISPER_FILES = ("config.json", "generation_config.json", "preprocessor_config.j
 
 
 def voice(id, label, quality, repo, size_gb, gpu_secs, cpu_secs, desc=""):
-    """Dictee vocale hors ligne (Whisper, via transformers). *_secs : temps pour 10 s de parole."""
+    """Offline voice dictation (Whisper, via transformers). *_secs: time for 10 s of speech."""
     d = os.path.join(config.VOICE_DIR, repo.split("/")[-1])
     return {"id": id, "kind": "voice", "label": label, "quality": quality, "repo": repo, "desc": desc,
             "files": [(repo, f, os.path.join(d, f)) for f in WHISPER_FILES], "dir": d, "size_gb": size_gb,
             "gpu_secs": gpu_secs, "cpu_secs": cpu_secs, "ckpt": id}
 
 
-# vitesses (ref_tps) et qualites : benchmark local RTX Spark (oct. 2026), GPQA Diamond publie
+# speeds (ref_tps) and qualities: local RTX Spark benchmark (Oct. 2026), published GPQA Diamond
 U = "unsloth/"
 CATALOG = [
     llm("qwen38", "Qwen3.8 27B", 5, U + "Qwen3.8-27B-GGUF", "Qwen3.8-27B-UD-Q4_K_M.gguf", "mmproj-F16.gguf", 16.2,
@@ -131,7 +131,7 @@ CATALOG = [
          6.5, style="illustration", desc="Illustration, anime, BD (SDXL)."),
 ]
 BY_ID = {m["id"]: m for m in CATALOG}
-jobs = {}  # id -> {"done": octets, "total": octets, "state": "running|ok|error", "error": str}
+jobs = {}  # id -> {"done": bytes, "total": bytes, "state": "running|ok|error", "error": str}
 
 
 def _ok(f):
@@ -139,7 +139,7 @@ def _ok(f):
 
 
 def installed(m):
-    """Un assistant est utilisable des que son modele est la ; la vision (mmproj) est un complement."""
+    """An assistant is usable as soon as its model is present; vision (mmproj) is an add-on."""
     files = m["files"][:1] if m["kind"] == "llm" else m["files"]
     return all(_ok(f) for f in files if f)
 
@@ -156,7 +156,7 @@ def llm_args(m):
 
 
 def indicators(m, measured=None, sysinfo=None):
-    """speed : 1 lent / 2 correct / 3 rapide ; fit : 2 tient avec la generation d'images, 1 juste, 0 trop gros."""
+    """speed: 1 slow / 2 fair / 3 fast; fit: 2 fits alongside image generation, 1 tight, 0 too big."""
     if sysinfo is None:
         import syscheck
         sysinfo = syscheck.current()
@@ -167,7 +167,7 @@ def indicators(m, measured=None, sysinfo=None):
         est = m["ref_tps"] * bw / REF_BW if m.get("ref_tps") else bw / m["active_gb"] * 0.85
         tps = measured or est * (2.05 if mtp else 1.0)
         speed = 3 if tps >= 40 else 2 if tps >= 20 else 1
-        need = m["size_gb"] + 2.5  # modele + contexte
+        need = m["size_gb"] + 2.5  # model + context
         fit = 2 if need + img <= mem else 1 if need <= mem else 0
         return {"speed": speed, "fit": fit, "tps": round(tps), "measured": bool(measured)}
     if m["kind"] == "voice":
@@ -196,7 +196,7 @@ def _install(mid):
                 continue
             os.makedirs(os.path.dirname(local), exist_ok=True)
             part = local + ".part"
-            for _ in range(60):  # reprise automatique en cas de coupure
+            for _ in range(60):  # automatic resume after interruptions
                 p = subprocess.Popen(["curl.exe" if os.name == "nt" else "curl", "-L", "--fail", "-s", "-C", "-",
                                       "--retry", "10", "--retry-delay", "3", "--retry-all-errors", "-o", part,
                                       HF.format(repo=repo, file=file)], creationflags=NOWIN)
@@ -241,13 +241,13 @@ def listing(settings):
     return out
 
 
-# ---------------------------------------------------------------- modeles ajoutes depuis Hugging Face
+# ---------------------------------------------------------------- models added from Hugging Face
 CUSTOM_FILE = os.path.join(config.DATA, "custom_models.json")
 THINKERS = ("qwen3", "gpt-oss", "gemma-4", "nemotron", "deepseek-r1", "magistral", "phi-4-reasoning")
 
 
 def _params(name):
-    """'Qwen3.5-35B-A3B' -> (35, 3) ; 'gemma-4-12b' -> (12, None)."""
+    """'Qwen3.5-35B-A3B' -> (35, 3); 'gemma-4-12b' -> (12, None)."""
     n = re.findall(r"(\d+(?:\.\d+)?)[bB](?![a-zA-Z])", name.replace("_", "-"))
     a = re.search(r"[-_]A(\d+(?:\.\d+)?)[bB]", name)
     total = max((float(x) for x in n), default=None)
@@ -293,13 +293,13 @@ def hf_search(q, kind):
 
 def hf_files(repo, kind):
     if blocked(repo):
-        raise RuntimeError("modèle non proposé dans Defend Local IA")
+        raise RuntimeError("modèle non proposé dans Sparky")
     info = hf_get(f"models/{repo}")
     if blocked(*info.get("tags", [])):
-        raise RuntimeError("modèle non proposé dans Defend Local IA")
+        raise RuntimeError("modèle non proposé dans Sparky")
     tree = hf_get(f"models/{repo}/tree/main?recursive=true")
     files = [f for f in tree if f.get("type") == "file"]
-    if kind == "image":  # checkpoints SDXL en un seul fichier
+    if kind == "image":  # single-file SDXL checkpoints
         out = [f for f in files if f["path"].endswith(".safetensors") and f.get("size", 0) > 1.5 * 2**30
                and "/" not in f["path"] and not blocked(f["path"])]
         return {"files": [{"path": f["path"], "size_gb": round(f["size"] / 2**30, 2)} for f in out], "mmproj": None}
@@ -320,7 +320,7 @@ def hf_files(repo, kind):
 
 def hf_install(repo, path, kind, mmproj=None):
     if blocked(repo, path):
-        raise RuntimeError("modèle non proposé dans Defend Local IA")
+        raise RuntimeError("modèle non proposé dans Sparky")
     base = os.path.splitext(os.path.basename(path))[0]
     mid = "hf:" + base
     if mid not in BY_ID:
@@ -346,7 +346,7 @@ def hf_install(repo, path, kind, mmproj=None):
 
 
 def delete(mid):
-    """Supprime les fichiers d'un modele, sauf ceux qu'un autre modele installe utilise encore."""
+    """Deletes a model's files, except those another installed model still uses."""
     m = BY_ID.get(mid)
     if not m:
         return

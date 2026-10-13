@@ -1,8 +1,8 @@
-"""Harnais d'agent de Defend Local IA : boucle LLM local (vision) <-> outils de generation ComfyUI.
+"""Sparky's agent harness: local (vision) LLM loop <-> ComfyUI generation tools.
 
-Le modele repond a chaque etape par une action JSON (generate / edit / reply). Apres chaque
-generation il recoit l'image produite (et les references utilisees) pour la verifier et
-corriger lui-meme si besoin, jusqu'a MAX_STEPS etapes par message.
+At each step the model answers with a JSON action (generate / edit / reply). After each
+generation it receives the produced image (and the references used) to check it and
+fix it itself if needed, up to MAX_STEPS steps per message.
 """
 import base64, io, json, os, random, re, threading, time, urllib.error, urllib.request, uuid
 
@@ -15,13 +15,13 @@ LLM = f"http://127.0.0.1:{config.LLM_PORT}"
 COMFY_IN = config.COMFY_IN
 COMFY_OUT = config.COMFY_OUT
 LORA_DIR = os.path.join(config.COMFY_MODELS, "loras")
-SDXL_LORAS = [("add-detail-xl.safetensors", 0.5), ("sdxl-face-detailer-lora.safetensors", 0.6)]  # optionnelles
+SDXL_LORAS = [("add-detail-xl.safetensors", 0.5), ("sdxl-face-detailer-lora.safetensors", 0.6)]  # optional
 QWEN = {"unet": "qwen_image_2.1_int8_convrot.safetensors", "clip": "qwen3vl_8b_int8_convrot.safetensors",
         "vae": "qwen_image_2.1_vae_bf16.safetensors"}
 DATA = config.DATA
-# niveau de reflexion -> (effort transmis au modele, budget de reflexion en jetons)
+# thinking level -> (effort passed to the model, thinking budget in tokens)
 THINK = {"off": (None, 0), "low": ("low", 1024), "medium": ("medium", 4096), "high": ("high", 12000)}
-ACTIVITY = {"llm": 0, "image": 0}  # nombre de requetes en cours (pour le moniteur de l'interface)
+ACTIVITY = {"llm": 0, "image": 0}  # number of requests in progress (for the UI monitor)
 
 
 class busy:
@@ -36,7 +36,7 @@ class busy:
 
 
 SETTINGS_FILE = os.path.join(DATA, "settings.json")
-SETTINGS = {"llm": None, "ckpt": None, "steps": 30, "cfg": 5.5, "max_steps": 6, "think": "off"}
+SETTINGS = {"llm": None, "ckpt": None, "steps": 30, "cfg": 5.5, "max_steps": 6, "think": "off", "ui_lang": "en"}
 
 
 def load_settings():
@@ -49,7 +49,7 @@ def save_settings():
     json.dump(SETTINGS, open(SETTINGS_FILE, "w", encoding="utf-8"), indent=1)
 
 
-RECENT_IMAGES = 10  # au-dela, les plus anciennes images passent en texte (par paquets de 6)
+RECENT_IMAGES = 10  # beyond this, the oldest images are turned into text (in batches of 6)
 SIZES = {"square": (1024, 1024), "portrait": (832, 1216), "landscape": (1216, 832)}
 DEFAULT_WEIGHT = {"face": 0.9, "character": 0.45, "style": 0.6, "scene": 0.5}
 DEFAULT_END = {"face": 0.7, "character": 0.6, "style": 1.0, "scene": 1.0}
@@ -76,7 +76,7 @@ IMAGE MODEL = {label} — these rules REPLACE the SDXL-specific ones above (weig
 
 
 def system_prompt():
-    """Relu a chaque appel : on peut ajuster prompt.md sans redemarrer."""
+    """Re-read on every call: prompt.md can be tweaked without restarting."""
     m = image_model()
     info = f"{m['label']} ({m.get('style') or 'general'} style)"
     base = open(PROMPT_FILE, encoding="utf-8").read() + "\nCurrent image model: " + info + "."
@@ -85,7 +85,7 @@ def system_prompt():
     return base
 
 
-# ---------------------------------------------------------------- utilitaires
+# ---------------------------------------------------------------- utilities
 def http_json(url, payload=None, timeout=900):
     data = None if payload is None else json.dumps(payload).encode()
     req = urllib.request.Request(url, data, {"Content-Type": "application/json"})
@@ -104,7 +104,7 @@ def fit_1mp(im):
 
 def box_px(box, w, h, pad=0.0):
     x1, y1, x2, y2 = [float(v) for v in box]
-    if max(x1, y1, x2, y2) <= 1.0:  # tolere des coordonnees 0-1
+    if max(x1, y1, x2, y2) <= 1.0:  # tolerate 0-1 coordinates
         x1, y1, x2, y2 = x1 * 1000, y1 * 1000, x2 * 1000, y2 * 1000
     x1, x2 = sorted((x1, x2))
     y1, y2 = sorted((y1, y2))
@@ -115,7 +115,7 @@ def box_px(box, w, h, pad=0.0):
 
 
 def ref_crop(path, role, box):
-    """Decoupe la reference (visage carre, corps avec marge) et la met au carre 512."""
+    """Crops the reference (square face, body with margin) and pads it to a 512 square."""
     im = Image.open(path).convert("RGB")
     w, h = im.size
     if box:
@@ -141,15 +141,15 @@ def comfy_file(im, prefix):
 
 
 def image_model():
-    """Entree du catalogue du modele d'image actif (moteur 'sdxl' ou 'qwen21')."""
+    """Catalog entry of the active image model (engine 'sdxl' or 'qwen21')."""
     import catalog
     m = next((c for c in catalog.CATALOG if c.get("ckpt") == SETTINGS["ckpt"]), None)
     return m or {"engine": "sdxl", "ckpt": SETTINGS["ckpt"], "label": SETTINGS["ckpt"] or "aucun"}
 
 
 def build_qwen(prompt, seed, size=None, images=(), lora=None, steps=25):
-    """Qwen-Image 2.1 : generation (latente vide) ou retouche par instruction (latente de l'image 1).
-    images : noms de fichiers dans ComfyUI/input, cites dans le prompt comme 'image 1', 'image 2'..."""
+    """Qwen-Image 2.1: generation (empty latent) or instruction-based edit (latent of image 1).
+    images: file names in ComfyUI/input, referred to in the prompt as 'image 1', 'image 2'..."""
     g = {"1": {"class_type": "UNETLoader", "inputs": {"unet_name": QWEN["unet"], "weight_dtype": "default"}},
          "3": {"class_type": "CLIPLoader", "inputs": {"clip_name": QWEN["clip"], "type": "qwen_image", "device": "default"}},
          "4": {"class_type": "VAELoader", "inputs": {"vae_name": QWEN["vae"]}}}
@@ -163,22 +163,22 @@ def build_qwen(prompt, seed, size=None, images=(), lora=None, steps=25):
         g[f"6{i}"] = {"class_type": "LoadImage", "inputs": {"image": name}}
         enc[f"images.image_{i + 1}"] = [f"6{i}", 0]
     g["5"] = {"class_type": "TextEncodeQwenImage21", "inputs": enc}
-    if size:  # nouvelle image (les images eventuelles servent de references)
+    if size:  # new image (any images serve as references)
         g["7"] = {"class_type": "EmptyLatentImage", "inputs": {"width": size[0], "height": size[1], "batch_size": 1}}
         latent = ["7", 0]
-    else:  # retouche : meme cadre que l'image 1
+    else:  # edit: same framing as image 1
         latent = ["5", 2]
     g["8"] = {"class_type": "KSampler", "inputs": {"model": ["2", 0], "positive": ["5", 0], "negative": ["5", 1],
               "latent_image": latent, "seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "euler",
               "scheduler": "simple", "denoise": 1.0}}
     g["9"] = {"class_type": "VAEDecode", "inputs": {"samples": ["8", 0], "vae": ["4", 0]}}
-    g["20"] = {"class_type": "SaveImage", "inputs": {"images": ["9", 0], "filename_prefix": "defend"}}
+    g["20"] = {"class_type": "SaveImage", "inputs": {"images": ["9", 0], "filename_prefix": "sparky"}}
     return g
 
 
 def build_klein(prompt, seed, size=None, images=(), steps=4, clip="qwen_3_4b_fp4_mixed.safetensors"):
-    """FLUX.2 Klein 4B (distille, 4 etapes) : generation, ou retouche par instruction quand size est None
-    (meme cadre que l'image 1). Les images sont passees en references latentes ('image 1', 'image 2'...)."""
+    """FLUX.2 Klein 4B (distilled, 4 steps): generation, or instruction-based edit when size is None
+    (same framing as image 1). Images are passed as latent references ('image 1', 'image 2'...)."""
     if size is None:
         w, h = Image.open(os.path.join(COMFY_IN, images[0])).size
         size = (max(256, w // 16 * 16), max(256, h // 16 * 16))
@@ -200,11 +200,11 @@ def build_klein(prompt, seed, size=None, images=(), steps=4, clip="qwen_3_4b_fp4
     g["10"] = {"class_type": "SamplerCustomAdvanced", "inputs": {"noise": ["8", 0], "guider": ["5", 0], "sampler": ["6", 0],
                                                                  "sigmas": ["7", 0], "latent_image": ["9", 0]}}
     g["11"] = {"class_type": "VAEDecode", "inputs": {"samples": ["10", 0], "vae": ["3", 0]}}
-    g["20"] = {"class_type": "SaveImage", "inputs": {"images": ["11", 0], "filename_prefix": "defend"}}
+    g["20"] = {"class_type": "SaveImage", "inputs": {"images": ["11", 0], "filename_prefix": "sparky"}}
     return g
 
 
-INSTRUCT = ("qwen21", "klein")  # moteurs qui comprennent les phrases et retouchent par instruction
+INSTRUCT = ("qwen21", "klein")  # engines that understand sentences and edit by instruction
 
 
 def build_instruct(m, prompt, seed, size=None, images=(), steps=None):
@@ -217,7 +217,7 @@ def build_instruct(m, prompt, seed, size=None, images=(), steps=None):
 def build_graph(prompt, negative, seed, size=None, src=None, mask=None, denoise=1.0, refs=()):
     g = {"1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": SETTINGS["ckpt"]}}}
     model, clip = ["1", 0], ["1", 1]
-    for i, (name, strength) in enumerate(SDXL_LORAS):  # LoRA detail / visage (si presentes)
+    for i, (name, strength) in enumerate(SDXL_LORAS):  # detail / face LoRAs (if present)
         if os.path.exists(os.path.join(LORA_DIR, name)):
             k = f"5{i}"
             g[k] = {"class_type": "LoraLoader", "inputs": {"model": model, "clip": clip, "lora_name": name,
@@ -225,7 +225,7 @@ def build_graph(prompt, negative, seed, size=None, src=None, mask=None, denoise=
             model, clip = [k, 0], [k, 1]
     g["2"] = {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": clip}}
     g["3"] = {"class_type": "CLIPTextEncode", "inputs": {"text": negative, "clip": clip}}
-    if refs:  # references personnage / style / decor via IP-Adapter
+    if refs:  # character / style / scene references via IP-Adapter
         g["30"] = {"class_type": "CLIPVisionLoader", "inputs": {"clip_name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"}}
         g["31"] = {"class_type": "IPAdapterModelLoader", "inputs": {"ipadapter_file": "ip-adapter-plus_sdxl_vit-h.safetensors"}}
         g["32"] = {"class_type": "IPAdapterModelLoader", "inputs": {"ipadapter_file": "ip-adapter-plus-face_sdxl_vit-h.safetensors"}}
@@ -250,12 +250,12 @@ def build_graph(prompt, negative, seed, size=None, src=None, mask=None, denoise=
             g["6"] = {"class_type": "LoadImageMask", "inputs": {"image": mask, "channel": "red"}}
             g["7"] = {"class_type": "GrowMask", "inputs": {"mask": ["6", 0], "expand": 6, "tapered_corners": False}}
             if denoise >= 0.95:
-                # suppression / remplacement complet : la zone est videe avant d'etre redessinee,
-                # sinon SDXL repart de l'objet d'origine et le fait reapparaitre
+                # full removal / replacement: the area is emptied before being redrawn,
+                # otherwise SDXL starts from the original object and makes it reappear
                 g["8"] = {"class_type": "VAEEncodeForInpaint", "inputs": {
                     "pixels": ["4", 0], "vae": ["1", 2], "mask": ["7", 0], "grow_mask_by": 8}}
                 denoise = 1.0
-            else:  # modification : on garde la structure de la zone (couleur, forme generale)
+            else:  # modification: keep the area's structure (color, overall shape)
                 g["8"] = {"class_type": "SetLatentNoiseMask", "inputs": {"samples": ["5", 0], "mask": ["7", 0]}}
             lat = ["8", 0]
     g["10"] = {"class_type": "KSampler", "inputs": {
@@ -263,14 +263,14 @@ def build_graph(prompt, negative, seed, size=None, src=None, mask=None, denoise=
         "steps": int(SETTINGS["steps"]), "cfg": float(SETTINGS["cfg"]), "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": denoise}}
     g["11"] = {"class_type": "VAEDecode", "inputs": {"samples": ["10", 0], "vae": ["1", 2]}}
     out = ["11", 0]
-    if mask:  # on ne recolle que la zone modifiee, bords adoucis
+    if mask:  # paste back only the modified area, with softened edges
         g["12"] = {"class_type": "MaskToImage", "inputs": {"mask": ["7", 0]}}
         g["13"] = {"class_type": "ImageBlur", "inputs": {"image": ["12", 0], "blur_radius": 12, "sigma": 6.0}}
         g["14"] = {"class_type": "ImageToMask", "inputs": {"image": ["13", 0], "channel": "red"}}
         g["15"] = {"class_type": "ImageCompositeMasked", "inputs": {
             "destination": ["4", 0], "source": ["11", 0], "x": 0, "y": 0, "resize_source": False, "mask": ["14", 0]}}
         out = ["15", 0]
-    g["20"] = {"class_type": "SaveImage", "inputs": {"images": out, "filename_prefix": "defend"}}
+    g["20"] = {"class_type": "SaveImage", "inputs": {"images": out, "filename_prefix": "sparky"}}
     return g
 
 
@@ -306,7 +306,7 @@ def _comfy_run(graph):
 
 
 def json_closed(t, st):
-    """Suit le texte au fil du flux : True des que le premier objet JSON {...} est ferme (st['pos'] = sa fin)."""
+    """Tracks the text as it streams: True once the first JSON object {...} is closed (st['pos'] = its end)."""
     i = st["pos"]
     while i < len(t):
         c = t[i]
@@ -332,7 +332,7 @@ def json_closed(t, st):
 
 
 def partial_json(buf):
-    """Extrait thought / action / text d'un objet JSON en cours d'ecriture (pour l'affichage en direct)."""
+    """Extracts thought / action / text from a JSON object being written (for live display)."""
     out = {}
     m = re.search(r'"action"\s*:\s*"(\w+)"', buf)
     if m:
@@ -341,7 +341,7 @@ def partial_json(buf):
     for key in keys:
         m = re.search(r'"%s"\s*:\s*"((?:[^"\\]|\\.)*)' % key, buf)
         if m:
-            s = re.sub(r"\\(u[0-9a-fA-F]{0,3})?$", "", m.group(1))  # sequence d'echappement coupee
+            s = re.sub(r"\\(u[0-9a-fA-F]{0,3})?$", "", m.group(1))  # truncated escape sequence
             try:
                 s = json.loads('"' + s + '"')
             except ValueError:
@@ -365,8 +365,8 @@ LANG_SETS = {k: set(v.split()) for k, v in LANG_WORDS.items()}
 
 
 def detect_lang(text, weak=False):
-    """Langue du message (heuristique par mots frequents). None si trop court/ambigu ('ok', 'cool', 'lol').
-    weak=True accepte un seul indice (utile en debut de conversation, quand aucune langue n'est encore connue)."""
+    """Message language (frequent-word heuristic). None if too short/ambiguous ('ok', 'cool', 'lol').
+    weak=True accepts a single clue (useful at the start of a conversation, when no language is known yet)."""
     import re
     words = re.findall(r"[a-zà-ÿ']+", (text or "").lower())
     if len(words) < (1 if weak else 2):
@@ -389,19 +389,19 @@ class Session:
         self.dir = os.path.join(DATA, "_tmp" if ephemeral else "", self.id)
         os.makedirs(self.dir, exist_ok=True)
         self.images = {}   # id -> {path, kind, desc}
-        self.masks = {}    # id image -> chemin du masque peint
+        self.masks = {}    # image id -> path of the painted mask
         self.history = []  # [{role, text, images}]
-        self.events = []   # pour reconstruire l'interface
+        self.events = []   # to rebuild the UI
         self.n = 0
         self.lock = threading.Lock()
         self._durls = {}
-        self.boxes = {}  # cache des localisations
+        self.boxes = {}  # cache of locate results
         self._emit = self._ev = lambda e: None
         self._read = False
-        self.lang = None  # langue de la conversation (mise a jour a chaque message clair)
-        self.artifacts = {}  # id -> {title, kind, language, versions: [contenu, ...]}
+        self.lang = None  # conversation language (updated on each unambiguous message)
+        self.artifacts = {}  # id -> {title, kind, language, versions: [content, ...]}
 
-    # -- persistance
+    # -- persistence
     def title(self):
         for e in self.events:
             if e.get("type") == "user":
@@ -462,7 +462,7 @@ class Session:
         key = (iid, side)
         if key not in self._durls:
             im = Image.open(self.images[iid]["path"]).convert("RGB")
-            s = side / max(im.size)  # agrandit aussi les petites images (precision de la localisation)
+            s = side / max(im.size)  # also upscales small images (locate precision)
             im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
             b = io.BytesIO()
             im.save(b, "JPEG", quality=88)
@@ -478,7 +478,7 @@ class Session:
             f"\nREPLY LANGUAGE: {self.lang}. Write \"thought\" and \"reply\" in {self.lang}." if self.lang else "")
 
     def _artifacts(self):
-        """Contenu actuel de chaque artifact (l'historique n'en garde qu'une mention, pour ne pas le dupliquer)."""
+        """Current content of each artifact (the history only keeps a mention, to avoid duplicating it)."""
         if not self.artifacts:
             return ""
         out = ["\n\nARTIFACTS (current content, reuse the id to update):"]
@@ -487,8 +487,8 @@ class Session:
         return "\n".join(out)
 
     def auto_artifacts(self, text, ev):
-        """Filet de securite : un modele qui colle une page HTML ou un long code dans sa reponse au lieu
-        d'utiliser l'action artifact -> le bloc part dans le panneau, la reponse garde le texte."""
+        """Safety net: when a model pastes an HTML page or long code into its reply instead of
+        using the artifact action -> the block goes to the panel, the reply keeps the text."""
         def repl(mt):
             lang, code = (mt.group(1) or "").lower(), mt.group(2).rstrip("\n")
             if lang not in ("html", "svg") and code.count("\n") < 15:
@@ -528,15 +528,15 @@ class Session:
 
     # -- LLM
     def llm_messages(self):
-        # Le debut du contexte doit rester IDENTIQUE d'un tour a l'autre pour que llama.cpp reutilise
-        # son cache (sinon il relit tout, images comprises : 20-30 s). On ne coupe donc l'historique
-        # et on ne retire des images que par gros paquets, rarement.
+        # The start of the context must stay IDENTICAL from one turn to the next so llama.cpp reuses
+        # its cache (otherwise it rereads everything, images included: 20-30 s). So the history is only trimmed
+        # and images only dropped in large batches, rarely.
         n = len(self.history)
         hist = self.history[(((n - 40) // 16 + 1) * 16) if n > 40 else 0:]
         import catalog
         cur = catalog.BY_ID.get(SETTINGS["llm"])
         vision = catalog.has_vision(cur) if cur else True
-        # un modele sans vision recoit seulement les descriptions des images
+        # a model without vision only receives the image descriptions
         imgs = [i for h in hist for i in h.get("images", [])]
         k = len(imgs)
         shown = imgs[(((k - RECENT_IMAGES) // 6 + 1) * 6) if k > RECENT_IMAGES else 0:] if vision else []
@@ -554,20 +554,20 @@ class Session:
                 else:
                     content.append({"type": "text", "text": f"[image #{i}, plus affichee : {self.images.get(i, {}).get('desc', '')[:200]}]"})
             msgs.append({"role": "user", "content": content})
-        # l'inventaire des images change a chaque tour : on le met a la FIN (cache intact)
+        # the image inventory changes every turn: put it at the END (cache intact)
         if msgs[-1]["role"] == "user":
             msgs[-1]["content"] = msgs[-1]["content"] + [{"type": "text", "text": self.catalog()}]
         return msgs
 
     def ask_llm(self, retry=True, think=None, dry=False):
         import catalog, zlib
-        if think is None:  # niveau choisi dans le menu du modele (si le modele sait reflechir)
+        if think is None:  # level chosen in the model menu (if the model can think)
             think = SETTINGS.get("think", "off") if catalog.BY_ID.get(SETTINGS["llm"], {}).get("think") else "off"
         effort, budget = THINK.get(think, THINK["off"])
         kw = {"enable_thinking": bool(effort)} | ({"reasoning_effort": effort} if effort else {})
         body = {"messages": self.llm_messages(), "temperature": 0.6 if effort else 0.4, "max_tokens": 14000 + budget,
                 "stream": True, "response_format": {"type": "json_object"}, "chat_template_kwargs": kw}
-        if dry:  # anti-repetition de llama.cpp, seulement apres une boucle (il peut gener du code legitimement repetitif)
+        if dry:  # llama.cpp anti-repetition, only after a loop (it can hurt legitimately repetitive code)
             body |= {"dry_multiplier": 0.8, "dry_base": 1.75, "dry_allowed_length": 6, "temperature": 0.7}
         req = urllib.request.Request(LLM + "/v1/chat/completions", json.dumps(body).encode(),
                                      {"Content-Type": "application/json"})
@@ -585,19 +585,19 @@ class Session:
                     delta = chunk["choices"][0]["delta"]
                     t += delta.get("content") or ""
                     rs += delta.get("reasoning_content") or ""
-                    if t and t_rs is None:  # fin de la reflexion = debut de la reponse
+                    if t and t_rs is None:  # end of thinking = start of the answer
                         t_rs = time.time() - t0
                 except (ValueError, KeyError, IndexError):
                     continue
                 if not self._read:
                     self._read = True
                     self._emit({"type": "read"})
-                if budget and not t and len(rs) > budget * 4:  # ~4 caracteres par jeton : budget depasse
+                if budget and not t and len(rs) > budget * 4:  # ~4 characters per token: budget exceeded
                     break
-                if json_closed(t, js):  # objet JSON complet : la suite (espaces, bavardage) ne sert a rien
+                if json_closed(t, js):  # complete JSON object: the rest (whitespace, chatter) is useless
                     break
                 out = t or rs
-                if len(out) > 2500 and len(out) - chk > 400:  # boucle de repetition : la fin se compresse a l'extreme
+                if len(out) > 2500 and len(out) - chk > 400:  # repetition loop: the tail compresses extremely well
                     chk = len(out)
                     if len(zlib.compress(out[-1500:].encode())) < 160:
                         looped = True
@@ -611,12 +611,12 @@ class Session:
         if looped and not dry:
             self._emit({"type": "status", "text": "le modèle tournait en boucle, nouvel essai", "reset": True})
             return self.ask_llm(retry, think, dry=True)
-        if rs:  # garde dans l'historique de la conversation (reaffiche a la reouverture)
+        if rs:  # keep in the conversation history (shown again on reopen)
             self._ev({"type": "reasoned", "secs": round(t_rs or time.time() - t0), "text": rs[-6000:]})
-        if effort and not t.strip():  # reflexion trop longue : reponse directe
+        if effort and not t.strip():  # thinking too long: direct answer
             self._emit({"type": "status", "text": "réflexion trop longue, réponse directe"})
             return self.ask_llm(retry, think="off")
-        try:  # derniere sortie brute, pour le diagnostic
+        try:  # last raw output, for diagnostics
             open(os.path.join(DATA, "last_llm.txt"), "w", encoding="utf-8").write(t)
         except OSError:
             pass
@@ -627,7 +627,7 @@ class Session:
         try:
             return json.loads(m.group(0))
         except Exception:
-            if retry:  # une seule relance avec rappel du format
+            if retry:  # a single retry with a format reminder
                 self.history.append({"role": "user", "images": [], "text":
                     "[FORMAT] Your last answer was not valid JSON. Answer again with ONE valid JSON object only."})
                 try:
@@ -637,13 +637,13 @@ class Session:
             return {"action": "reply", "args": {"text": t.strip() or "..."}}
 
     def fix_language(self, text):
-        """Garde-fou : si la reponse n'est pas (entierement) dans la langue de la conversation, on la fait reecrire."""
+        """Safeguard: if the reply isn't (entirely) in the conversation language, have it rewritten."""
         if not self.lang or not text:
             return text
-        prose = re.sub(r"```.*?(```|$)|`[^`\n]*`", " ", text, flags=re.S)  # le code n'a pas de langue
+        prose = re.sub(r"```.*?(```|$)|`[^`\n]*`", " ", text, flags=re.S)  # code has no language
         if len(prose.split()) < 4:
             return text
-        if "```" in text:  # une reecriture risquerait d'abimer le code : on garde tel quel
+        if "```" in text:  # a rewrite could damage the code: keep it as is
             return text
         words = re.findall(r"[a-zà-ÿ']+", prose.lower())
         own = LANG_SETS.get(self.lang, set())
@@ -666,14 +666,14 @@ class Session:
             return text
 
     def locate(self, iid, what):
-        """Demande au modele de vision la boite (0-1000) d'un element precis de l'image."""
+        """Asks the vision model for the box (0-1000) of a specific element in the image."""
         key = f"{iid}|{what}"
         if key not in self.boxes:
             self._emit({"type": "status", "text": f"localise « {what} » sur #{iid}"})
             q = (f"Locate: {what}. Answer ONLY with JSON {{\"box\":[x1,y1,x2,y2]}}, coordinates normalized "
                  "from 0 to 1000 (0,0 = top-left corner, 1000,1000 = bottom-right corner). For a part of something "
                  "(neck, hand...) give its approximate box. If absent: {\"box\":null}.")
-            # 1280 px : nettement plus precis que 896 pour la localisation (teste)
+            # 1280 px: noticeably more precise than 896 for locating (tested)
             body = {"messages": [{"role": "user", "content": [
                         {"type": "image_url", "image_url": {"url": self.data_url(iid, 1280)}}, {"type": "text", "text": q}]}],
                     "temperature": 0, "max_tokens": 120, "chat_template_kwargs": {"enable_thinking": False}}
@@ -687,7 +687,7 @@ class Session:
                 self.boxes[key] = None
         return self.boxes[key]
 
-    # -- outils
+    # -- tools
     def prep_refs(self, refs):
         out, crops = [], []
         for r in (refs or [])[:4]:
@@ -703,16 +703,16 @@ class Session:
                 box = self.locate(iid, LOCATE[role].format(t=r.get("target") or "the main person")) or box
             crop = ref_crop(self.images[iid]["path"], role, box)
             w = float(r.get("weight") or DEFAULT_WEIGHT[role])
-            # le personnage se fixe dans les premieres etapes ; les dernieres laissent le checkpoint faire
-            # son rendu (sinon le style d'une reference dessinee "deteint" sur une photo)
+            # the character is set in the first steps; the last ones let the checkpoint do
+            # its rendering (otherwise a drawn reference's style "bleeds" onto a photo)
             end = float(r.get("end_at") or DEFAULT_END[role])
-            out.append({"file": comfy_file(crop, "dlia_ref"), "role": role, "weight": max(0.0, min(1.5, w)),
+            out.append({"file": comfy_file(crop, "sparky_ref"), "role": role, "weight": max(0.0, min(1.5, w)),
                         "end_at": max(0.2, min(1.0, end))})
             crops.append(self.add_image(crop, "ref", f"{role} crop of #{iid}", parent=iid))
         return out, crops
 
     def ref_images(self, refs, exclude=()):
-        """Qwen-Image : les references sont les images entieres (le modele comprend 'la femme de l'image 2')."""
+        """Qwen-Image: references are the whole images (the model understands 'the woman from image 2')."""
         out = []
         for r in refs or []:
             try:
@@ -721,10 +721,10 @@ class Session:
                 continue
             if iid in self.images and iid not in exclude and iid not in out:
                 out.append(iid)
-        return [comfy_file(fit_1mp(Image.open(self.images[i]["path"]).convert("RGB")), "dlia_ref") for i in out]
+        return [comfy_file(fit_1mp(Image.open(self.images[i]["path"]).convert("RGB")), "sparky_ref") for i in out]
 
     def face_pass(self, iid, prompt, refs):
-        """SDXL : redessine le visage principal en haute resolution puis le recolle (visages nets et detailles)."""
+        """SDXL: redraws the main face at high resolution then pastes it back (sharp, detailed faces)."""
         if not SETTINGS.get("face_fix", True):
             return
         box = self.locate(iid, "the face of the main person")
@@ -733,7 +733,7 @@ class Session:
         im = Image.open(self.images[iid]["path"]).convert("RGB")
         W, H = im.size
         x1, y1, x2, y2 = box_px(box, W, H)
-        if (y2 - y1) > 0.45 * H or (y2 - y1) < 24:  # visage deja grand (gros plan) ou introuvable
+        if (y2 - y1) > 0.45 * H or (y2 - y1) < 24:  # face already large (close-up) or not found
             return
         self._emit({"type": "status", "text": "affine le visage"})
         cx, cy, s = (x1 + x2) / 2, (y1 + y2) / 2, max(x2 - x1, y2 - y1) * 1.9
@@ -744,7 +744,7 @@ class Session:
         big = crop.resize((max(64, round(crop.width * k / 8) * 8), max(64, round(crop.height * k / 8) * 8)), Image.LANCZOS)
         face_refs = [r for r in refs if r["role"] == "face"]
         g = build_graph("detailed close-up of a face, sharp eyes, natural skin texture, " + prompt, NEGATIVE,
-                        random.randrange(2 ** 31), src=comfy_file(big, "dlia_face"), denoise=0.38, refs=face_refs)
+                        random.randrange(2 ** 31), src=comfy_file(big, "sparky_face"), denoise=0.38, refs=face_refs)
         fixed = Image.open(comfy_run(g)).convert("RGB").resize(crop.size, Image.LANCZOS)
         m = Image.new("L", crop.size, 0)
         ImageDraw.Draw(m).ellipse((crop.width * 0.08, crop.height * 0.06, crop.width * 0.92, crop.height * 0.94), fill=255)
@@ -754,8 +754,8 @@ class Session:
         self._durls = {k: v for k, v in self._durls.items() if k[0] != iid}
 
     def qwen_masked_edit(self, iid, src, prompt, refs, m):
-        """Zone peinte + Qwen : Qwen ne voit pas le masque, donc on lui donne un gros plan de la zone
-        (avec du contexte), il fait la modification au centre, et on recolle avec des bords adoucis."""
+        """Painted area + Qwen: Qwen doesn't see the mask, so we give it a close-up of the area
+        (with context), it makes the change in the middle, and we paste it back with softened edges."""
         from PIL import ImageFilter
         mk = Image.open(self.masks[iid]).convert("L").resize(src.size)
         bb = mk.point(lambda v: 255 if v > 127 else 0).getbbox()
@@ -763,7 +763,7 @@ class Session:
             raise RuntimeError("la zone peinte est vide")
         W, H = src.size
         x1, y1, x2, y2 = bb
-        side = max(x2 - x1, y2 - y1) * 1.7  # contexte autour de la zone
+        side = max(x2 - x1, y2 - y1) * 1.7  # context around the area
         side = max(side, 0.3 * max(W, H))
         cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
         cx1, cy1 = int(max(0, min(W - side, cx - side / 2))), int(max(0, min(H - side, cy - side / 2)))
@@ -773,13 +773,13 @@ class Session:
         big = crop.resize((round(crop.width * k / 32) * 32, round(crop.height * k / 32) * 32), Image.LANCZOS)
         rel = mk.crop((cx1, cy1, cx2, cy2)).getbbox()
         where = ""
-        if rel:  # position de la zone dans le gros plan, en mots
+        if rel:  # position of the area in the close-up, in words
             rx, ry = (rel[0] + rel[2]) / 2 / crop.width, (rel[1] + rel[3]) / 2 / crop.height
             where = (("top" if ry < 0.35 else "bottom" if ry > 0.65 else "middle") + "-"
                      + ("left" if rx < 0.35 else "right" if rx > 0.65 else "center"))
         note = (f" (This image is a close-up crop of the area to modify: make the change in the {where} part of "
                 "image 1, at a scale consistent with the surroundings, and keep the borders of the image unchanged.)")
-        g = build_instruct(m, prompt + note, random.randrange(2 ** 31), images=[comfy_file(big, "dlia_zone")] + refs)
+        g = build_instruct(m, prompt + note, random.randrange(2 ** 31), images=[comfy_file(big, "sparky_zone")] + refs)
         out = Image.open(comfy_run(g)).convert("RGB").resize(crop.size, Image.LANCZOS)
         soft = mk.crop((cx1, cy1, cx2, cy2)).filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(max(6, crop.width // 40)))
         res = src.copy()
@@ -813,8 +813,8 @@ class Session:
             refs = self.ref_images(a.get("refs"), exclude=(iid,))
             if region == "mask" and iid in self.masks:
                 return self.qwen_masked_edit(iid, src, a.get("prompt", ""), refs, m), []
-            # retouche par instruction : image 1 = image a modifier, puis les references
-            names = [comfy_file(src, "dlia_src")] + refs
+            # instruction-based edit: image 1 = image to modify, then the references
+            names = [comfy_file(src, "sparky_src")] + refs
             g = build_instruct(m, a.get("prompt", ""), random.randrange(2 ** 31), images=names)
             out = Image.open(comfy_run(g)).convert("RGB")
             return self.add_image(out, "gen", a.get("prompt", ""), parent=iid), []
@@ -838,16 +838,16 @@ class Session:
         den = float(a.get("denoise") or (0.9 if mask else 0.5))
         neg = a.get("negative") or NEGATIVE
         if mask and den >= 0.95 and re.search(r"\b(empty|bare|clean|clear|nothing|plain|uncluttered)\b", a.get("prompt", ""), re.I):
-            # suppression : la zone videe doit rester vide (SDXL aime y remettre un objet)
+            # removal: the emptied area must stay empty (SDXL likes to put an object back)
             neg += ", object, item, clutter, bottle, glass, wine glass, cup, mug, vase, drink, food, leaves, flowers"
         g = build_graph(a.get("prompt", ""), neg, random.randrange(2 ** 31),
-                        src=comfy_file(src, "dlia_src"),
-                        mask=comfy_file(mask.convert("RGB"), "dlia_mask") if mask else None,
+                        src=comfy_file(src, "sparky_src"),
+                        mask=comfy_file(mask.convert("RGB"), "sparky_mask") if mask else None,
                         denoise=max(0.05, min(1.0, den)), refs=refs)
         new = self.add_image(Image.open(comfy_run(g)).convert("RGB"), "gen", a.get("prompt", ""), parent=iid)
         return new, crops
 
-    # -- un tour de conversation
+    # -- one conversation turn
     def turn(self, text, uploads, mask, mask_for, emit):
         def ev(e):
             e.setdefault("ts", time.time())
@@ -857,7 +857,7 @@ class Session:
         with self.lock:
             self._emit, self._ev, self._read = emit, ev, False
             self.lang = (detect_lang(text) or self.lang or detect_lang(text, weak=True)
-                         or SETTINGS.get("default_lang", "French"))
+                         or ("French" if SETTINGS.get("ui_lang") == "fr" else "English"))
             ids = [self.add_image(im, "user") for im in uploads]
             note = ""
             if mask is not None and mask_for in self.images:
@@ -892,7 +892,7 @@ class Session:
                             tools_used, n = True, len(art["versions"])
                             ev({"type": "artifact", "id": aid, "title": art["title"], "kind": art["kind"],
                                 "language": art["language"], "version": n, "content": art["versions"][-1]})
-                            # l'historique garde une simple mention : le contenu a jour est donne en fin de contexte
+                            # the history keeps a simple mention: the up-to-date content is given at the end of the context
                             self.history[-1]["text"] = json.dumps(
                                 act | {"args": args | {"content": f"[artifact {aid} v{n} : voir ARTIFACTS]"}}, ensure_ascii=False)
                             self.history.append({"role": "user", "images": [], "text":
@@ -905,7 +905,7 @@ class Session:
                     if name not in ("generate", "edit") or step == max_steps:
                         text = args.get("text") or act.get("text") or act.get("reply")
                         nudge = None
-                        if not text:  # reponse vide ou JSON mal forme
+                        if not text:  # empty reply or malformed JSON
                             nudge = "[FORMAT] Your last answer was empty or malformed. Do what the user asked now: generate/edit, or reply with args.text."
                         elif step < max_steps and not tools_used and ANNOUNCE.search(text):
                             nudge = ("[ACTION] You announced an action without doing it. Do it NOW with generate or edit "
@@ -919,7 +919,7 @@ class Session:
                         text = self.fix_language(text or act.get("thought") or "...")
                         if "```" in text:
                             short = self.auto_artifacts(text, ev)
-                            if short != text:  # le code vit dans l'artifact : l'historique n'en garde pas de copie
+                            if short != text:  # the code lives in the artifact: the history keeps no copy of it
                                 self.history[-1]["text"] = json.dumps(act | {"args": {"text": short + " [code dans l'artifact, voir ARTIFACTS]"}}, ensure_ascii=False)
                                 text = short
                         ev({"type": "reply", "text": text})

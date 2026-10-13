@@ -1,4 +1,4 @@
-"""Dictee vocale hors ligne : Whisper (transformers + PyTorch), charge a la demande et libere apres 10 min sans usage."""
+"""Offline voice dictation: Whisper (transformers + PyTorch), loaded on demand and freed after 10 min of inactivity."""
 import io, threading, time, wave
 
 import numpy as np
@@ -37,7 +37,7 @@ threading.Thread(target=_unload_when_idle, daemon=True).start()
 
 
 def read_wav(data):
-    """WAV PCM 16 bits envoye par l'interface -> float32 mono 16 kHz."""
+    """16-bit PCM WAV sent by the UI -> float32 mono 16 kHz."""
     with wave.open(io.BytesIO(data)) as w:
         sr, ch, n = w.getframerate(), w.getnchannels(), w.getnframes()
         pcm = np.frombuffer(w.readframes(n), dtype=np.int16).astype(np.float32) / 32768.0
@@ -51,36 +51,36 @@ def read_wav(data):
 
 import re
 
-# phrases que Whisper invente sur du silence ou du bruit (vues dans ses donnees de sous-titres)
+# phrases Whisper invents on silence or noise (seen in its subtitle training data)
 ARTEFACT = re.compile(r"^\s*(thanks for watching!?|merci d'avoir regardé.*|sous-titres? .*|sous-titrage .*|.*amara\.org.*|"
                       r"abonnez-vous.*|♪+|\.+)\s*$", re.I)
 
 
 def clean(text):
-    """Retire les artefacts de sous-titres et les phrases repetees en boucle (hallucinations de Whisper)."""
+    """Removes subtitle artifacts and sentences repeated in a loop (Whisper hallucinations)."""
     out, reps = [], 0
     for p in re.split(r"(?<=[.!?])\s+", text.strip()):
         if ARTEFACT.match(p):
             continue
         if out and p.strip().lower() == out[-1].strip().lower():
-            reps += 1  # la meme phrase repetee d'affilee
+            reps += 1  # the same sentence repeated back to back
             continue
         out.append(p)
     if reps >= 2 and len(out) == 1 and len(out[0].split()) <= 3:
-        return ""  # « Thank you. Thank you. Thank you… » sur du bruit : rien n'a ete dit
+        return ""  # "Thank you. Thank you. Thank you..." on noise: nothing was said
     return " ".join(out).strip()
 
 
 def transcribe(data, mid, language=None):
     audio = read_wav(data)
     if len(audio) < 16000 * 0.3 or float(np.abs(audio).max()) < 0.01:
-        return ""  # trop court ou silence : Whisper inventerait du texte
+        return ""  # too short or silent: Whisper would make up text
     with _lock:
         if _st["id"] != mid:
             _load(mid)
         _st["used"] = time.time()
         kw = {"task": "transcribe"} | ({"language": language} if language else {})
-        # au-dela de 30 s, Whisper enchaine lui-meme les fenetres (transcription longue, horodatee)
+        # beyond 30 s, Whisper chains the windows itself (long, timestamped transcription)
         out = _st["pipe"]({"raw": audio, "sampling_rate": 16000}, generate_kwargs=kw,
                           return_timestamps=len(audio) > 30 * 16000)
         _st["used"] = time.time()

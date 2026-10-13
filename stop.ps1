@@ -1,4 +1,4 @@
-# Arrete Defend Local IA : interface, assistant (llama-server) et moteur d'images (ComfyUI).
+# Stops Sparky: UI, assistant (llama-server) and image engine (ComfyUI).
 $Root = $PSScriptRoot
 $cfg = @{}
 if (Test-Path "$Root\config.json") { (Get-Content "$Root\config.json" -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $cfg[$_.Name] = $_.Value } }
@@ -8,4 +8,4 @@ foreach ($p in $ports) {
     Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue
   }
 }
-Write-Host "Defend Local IA arrete."
+Write-Host "Sparky stopped."

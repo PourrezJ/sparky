@@ -1,7 +1,7 @@
-"""Defend Local IA : interface de chat + harnais d'agent (harness.py) + LLM vision (llama-server) + ComfyUI.
+"""Sparky: chat UI + agent harness (harness.py) + vision LLM (llama-server) + ComfyUI.
 
-Usage : python app\\server.py [--port 7860] [--no-llm]   (ou start.bat)
-Le modele d'assistant, le modele d'image et les reglages se choisissent dans l'interface (Parametres).
+Usage: python app\\server.py [--port 7860] [--no-llm]   (or start.bat)
+The assistant model, image model and settings are chosen in the UI (Settings).
 """
 import argparse, base64, io, json, os, shutil, subprocess, sys, threading, time, urllib.request
 import http.server, socketserver
@@ -17,10 +17,10 @@ import syscheck
 HERE = os.path.dirname(os.path.abspath(__file__))
 NOWIN = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 LLM_LOG = os.path.join(config.DATA, "llm.log")
-LLMS = catalog.BY_ID    # tous les modeles (catalogue + ajouts Hugging Face), filtres par kind a l'usage
-sessions = {}           # id -> Session (en memoire)
+LLMS = catalog.BY_ID    # all models (catalog + Hugging Face additions), filtered by kind when used
+sessions = {}           # id -> Session (in memory)
 llm_state = {"name": None}
-# changement de modele en cours, suivi par l'interface (spinner + etapes)
+# model switch in progress, tracked by the UI (spinner + steps)
 switch = {"kind": None, "id": None, "label": "", "phase": "idle", "steps": [], "t0": 0.0, "eta": 0, "error": ""}
 
 
@@ -49,7 +49,7 @@ def stop_llm():
 
 
 def start_comfy():
-    """Lance ComfyUI (generation d'images) s'il ne tourne pas deja."""
+    """Starts ComfyUI (image generation) if it isn't already running."""
     if port_listening(config.COMFY_PORT) or not os.path.exists(os.path.join(config.COMFY_DIR, "main.py")):
         return
     os.makedirs(config.DATA, exist_ok=True)
@@ -77,7 +77,7 @@ def start_llm(name, restart=False):
             print("Aucun assistant installe : choisis-en un dans l'interface.")
             return None
         name = rec if rec in ok else ok[0]
-    try:  # libere la VRAM de ComfyUI avant de charger un gros modele (rechargee a la prochaine image)
+    try:  # free ComfyUI's VRAM before loading a big model (reloaded on the next image)
         harness.http_json(harness.COMFY + "/free", {"unload_models": True, "free_memory": True}, timeout=10)
     except Exception:
         pass
@@ -93,7 +93,7 @@ def start_llm(name, restart=False):
 
 
 def autostart():
-    """Des qu'un modele vient d'etre installe et qu'aucun n'est actif, on l'active tout seul."""
+    """As soon as a model has just been installed and none is active, activate it automatically."""
     while True:
         time.sleep(4)
         try:
@@ -149,7 +149,7 @@ def _switch(mid):
         else:
             harness.SETTINGS["ckpt"] = m["ckpt"]
             _step("Décharge l'ancien modèle d'image")
-            try:  # ComfyUI repond par un corps vide : ce n'est pas une erreur
+            try:  # ComfyUI replies with an empty body: not an error
                 harness.http_json(harness.COMFY + "/free", {"unload_models": True, "free_memory": True}, timeout=15)
             except Exception:
                 pass
@@ -163,7 +163,7 @@ def _switch(mid):
                 warm["10"]["inputs"]["steps"] = 1
             warm["20"] = {"class_type": "PreviewImage", "inputs": {"images": warm["20"]["inputs"]["images"]}}
             with harness.busy("image"):
-                harness._comfy_run(warm)  # premiere image minuscule : force le chargement du checkpoint
+                harness._comfy_run(warm)  # tiny first image: forces the checkpoint to load
         harness.SETTINGS["llm" if m["kind"] == "llm" else "ckpt"] = mid if m["kind"] == "llm" else m["ckpt"]
         harness.save_settings()
         _step(None)
@@ -175,7 +175,7 @@ def _switch(mid):
 
 
 def voice_model():
-    """Modele de dictee choisi (ou le recommande / le premier installe), et s'il est pret."""
+    """Selected dictation model (or the recommended / first installed one), and whether it is ready."""
     voices = [m for m in catalog.CATALOG if m["kind"] == "voice"]
     ok = [m for m in voices if catalog.installed(m)]
     rec = syscheck.current().get("recommended", {}).get("voice")
@@ -188,7 +188,7 @@ def use_model(mid):
     m = catalog.BY_ID.get(mid)
     if not m or not catalog.installed(m) or switch["phase"] == "loading":
         return False
-    if m["kind"] == "voice":  # rien a charger : Whisper se charge a la premiere dictee
+    if m["kind"] == "voice":  # nothing to load: Whisper loads on first dictation
         harness.SETTINGS["voice"] = mid
         harness.save_settings()
         return True
@@ -224,7 +224,7 @@ def num(v):
 
 
 def metrics():
-    if time.time() - _gpu["t"] > 1.5:  # nvidia-smi est lent : au plus une lecture toutes les 1,5 s
+    if time.time() - _gpu["t"] > 1.5:  # nvidia-smi is slow: at most one read every 1.5 s
         _gpu["t"] = time.time()
         try:
             line = subprocess.run(["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw",
@@ -329,7 +329,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send(404, {"error": "introuvable"})
 
     def do_POST(self):
-        if self.path.startswith("/api/transcribe"):  # corps = WAV brut enregistre par l'interface
+        if self.path.startswith("/api/transcribe"):  # body = raw WAV recorded by the UI
             data = self.rfile.read(int(self.headers.get("Content-Length") or 0))
             m, ready = voice_model()
             if not ready:
@@ -345,7 +345,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         b = self.body()
         if self.path == "/api/new":
             s = harness.Session(ephemeral=bool(b.get("ephemeral")))
-            # une conversation ephemere precedente disparait des qu'on en ouvre une autre
+            # a previous ephemeral conversation disappears as soon as another one is opened
             for k in [k for k, v in sessions.items() if v.ephemeral]:
                 sessions.pop(k).delete()
             sessions[s.id] = s
@@ -386,6 +386,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     harness.SETTINGS[k] = new[k]
             if new.get("think") in harness.THINK:
                 harness.SETTINGS["think"] = new["think"]
+            if new.get("ui_lang") in ("en", "fr"):
+                harness.SETTINGS["ui_lang"] = new["ui_lang"]
             harness.save_settings()
             return self.send(200, {"ok": True})
         if self.path != "/api/chat":
@@ -395,7 +397,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if s is None:
             s = harness.Session()
             sessions[s.id] = s
-        # flux d'evenements (Server-Sent Events)
+        # event stream (Server-Sent Events)
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -408,9 +410,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(("data: " + json.dumps(e, ensure_ascii=False) + "\n\n").encode())
                 self.wfile.flush()
             except OSError:
-                pass  # l'onglet a ete ferme : le tour continue et reste dans l'historique
+                pass  # the tab was closed: the turn continues and stays in the history
 
-        emit({"type": "ack", "id": s.id, "busy": s.lock.locked()})  # recu par le serveur
+        emit({"type": "ack", "id": s.id, "busy": s.lock.locked()})  # received by the server
         if not llm_state["name"]:
             emit({"type": "error", "text": "Aucun assistant n'est installé : ouvre Paramètres > Bibliothèque de modèles."})
             emit({"type": "done"})
@@ -432,8 +434,8 @@ if __name__ == "__main__":
     a = ap.parse_args()
     harness.load_settings()
     if harness.SETTINGS.get("llm") and harness.SETTINGS["llm"] not in LLMS:
-        harness.SETTINGS["llm"] = None  # ancien reglage vers un modele retire du catalogue
-    shutil.rmtree(os.path.join(harness.DATA, "_tmp"), ignore_errors=True)  # restes de conversations ephemeres
+        harness.SETTINGS["llm"] = None  # old setting pointing to a model removed from the catalog
+    shutil.rmtree(os.path.join(harness.DATA, "_tmp"), ignore_errors=True)  # leftovers from ephemeral conversations
     syscheck.current()
     if not a.no_comfy:
         start_comfy()
@@ -444,5 +446,5 @@ if __name__ == "__main__":
             print(e)
     if not a.no_llm:
         threading.Thread(target=autostart, daemon=True).start()
-    print(f"Defend Local IA : http://127.0.0.1:{a.port}")
+    print(f"Sparky : http://127.0.0.1:{a.port}")
     Server(("127.0.0.1", a.port), Handler).serve_forever()
