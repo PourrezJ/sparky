@@ -253,30 +253,10 @@ def metrics():
 
 
 def run_project(s, pid, p):
-    """Writes the project to <session>/projects/<id>/ and runs its entry (Python), 60 s max, output captured."""
-    import harness as h
-    root = os.path.join(s.dir, "projects", pid)
-    shutil.rmtree(root, ignore_errors=True)
-    for fp, content in p["files"].items():
-        dest = os.path.join(root, *h.clean_path(fp).split("/"))
-        os.makedirs(os.path.dirname(dest), exist_ok=True)
-        with open(dest, "w", encoding="utf-8", newline="") as f:
-            f.write(content)
-    entry = p.get("entry") or ""
-    if entry.endswith(".py"):
-        cmd = [sys.executable, "-X", "utf8", entry]
-    elif entry.endswith(".js") and shutil.which("node"):
-        cmd = ["node", entry]
-    else:
-        return {"code": None, "output": "Ce projet n'a pas de programme à lancer : c'est un site, ouvre l'onglet Aperçu.", "secs": 0, "dir": root}
-    t0 = time.time()
-    try:
-        r = subprocess.run(cmd, cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
-                           stdin=subprocess.DEVNULL, creationflags=NOWIN, env=os.environ | {"PYTHONIOENCODING": "utf-8"})
-        out, code = (r.stdout or "") + (("\n" + r.stderr) if r.stderr else ""), r.returncode
-    except subprocess.TimeoutExpired as e:
-        out, code = ((e.stdout or "") if isinstance(e.stdout, str) else "") + "\n[arrêté au bout de 60 s]", -1
-    return {"code": code, "output": out[-20000:], "secs": round(time.time() - t0, 1), "cmd": " ".join(cmd[-1:]), "dir": root}
+    """Run button: same engine as the automatic tests (Python, Node.js with npm, website in a headless browser)."""
+    import checker
+    r = checker.check(s, pid, p, config.APP_PORT)
+    return {"code": r["code"], "output": r["output"] or "(aucune sortie)", "secs": r["secs"], "ok": r["ok"], "kind": r["kind"]}
 
 
 def decode_image(data_url):
@@ -338,6 +318,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 sid, pid, fpath = unquote(path[len("/api/proj/"):]).split("/", 2)
                 s = sessions.get(sid) or get_session(sid)
                 files = s.projects[pid]["files"]
+                img = s.asset_file(pid, fpath) if fpath else None
+                if img and os.path.exists(img):  # generated image used by the project
+                    return self.send(200, open(img, "rb").read(), mimetypes.guess_type(fpath)[0] or "image/png")
                 body = files.get(fpath) if fpath else None
                 if body is None:
                     return self.send(404, b"not found", "text/plain")
@@ -355,6 +338,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
                 for fp, content in p["files"].items():
                     z.writestr(f"{q['project']}/{fp}", content)
+                for fp in p.get("assets", {}):
+                    src = s.asset_file(q["project"], fp)
+                    if src and os.path.exists(src):
+                        z.write(src, f"{q['project']}/{fp}")
             self.send_response(200)
             self.send_header("Content-Type", "application/zip")
             self.send_header("Content-Disposition", f'attachment; filename="{q["project"]}.zip"')
@@ -460,6 +447,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     harness.SETTINGS[k] = new[k]
             if new.get("think") in harness.THINK:
                 harness.SETTINGS["think"] = new["think"]
+            if "autotest" in new:
+                harness.SETTINGS["autotest"] = bool(new["autotest"])
             if new.get("ui_lang") in ("en", "fr"):
                 harness.SETTINGS["ui_lang"] = new["ui_lang"]
             harness.save_settings()
@@ -565,6 +554,7 @@ if __name__ == "__main__":
     ap.add_argument("--no-llm", action="store_true")
     ap.add_argument("--no-comfy", action="store_true")
     a = ap.parse_args()
+    config.APP_PORT = a.port  # the automatic project tests open the preview on this port
     harness.load_settings()
     if harness.SETTINGS.get("llm") and harness.SETTINGS["llm"] not in LLMS:
         harness.SETTINGS["llm"] = None  # old setting pointing to a model removed from the catalog

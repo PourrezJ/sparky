@@ -284,7 +284,7 @@ function GetRepo([string]$label, [string]$url, [string]$dest, [string]$branch) {
 }
 GetRepo (T 'comfy') 'https://github.com/comfyanonymous/ComfyUI' $comfy 'master'
 GetRepo (T 'ipa') 'https://github.com/cubiq/ComfyUI_IPAdapter_plus' (Join-Path $comfy 'custom_nodes\ComfyUI_IPAdapter_plus') 'main'
-Run (T 'deps') $vpy @('-m', 'pip', 'install', '-r', (Join-Path $comfy 'requirements.txt'), 'psutil', 'pillow')
+Run (T 'deps') $vpy @('-m', 'pip', 'install', '-r', (Join-Path $comfy 'requirements.txt'), 'psutil', 'pillow', 'websocket-client')
 
 # ------------------------------------------------------------------ 5. llama.cpp
 Step (T 's5')
@@ -319,6 +319,19 @@ if (-not (Test-Path (Join-Path $llama 'llama-server.exe'))) {
   $kind = if ($pick.asset.name -match 'cuda-([\d.]+)') { "CUDA $($Matches[1])" } else { 'CPU' }
   Ok ("llama.cpp " + $pick.rel.tag_name + "   $Mid   $kind $arch")
 } else { Ok ("llama.cpp   " + (T 'already')) }
+# Node.js (portable): runs and tests the JavaScript projects the assistant builds
+$nodeDir = Join-Path $Runtime 'node'
+if (-not (Test-Path (Join-Path $nodeDir 'node.exe'))) {
+  $idx = Invoke-RestMethod 'https://nodejs.org/dist/index.json'
+  $lts = $idx | Where-Object { $_.lts -and $_.files -contains "win-$arch-zip" } | Select-Object -First 1
+  if ($lts) {
+    $zip = Join-Path $env:TEMP 'node.zip'
+    Fetch ("Node.js " + $lts.version) "https://nodejs.org/dist/$($lts.version)/node-$($lts.version)-win-$arch.zip" $zip
+    Expand-Archive $zip $Runtime -Force
+    $nd = Get-ChildItem $Runtime -Directory -Filter 'node-v*' | Select-Object -First 1
+    if ($nd) { Move-Item $nd.FullName $nodeDir }
+  }
+} else { Ok ("Node.js   " + (T 'already')) }
 
 # ------------------------------------------------------------------ 6. scan + models
 Step (T 's6')

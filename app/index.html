@@ -288,6 +288,7 @@ body.artlive #artLive{display:flex}
 .pcons pre .err{color:#ff9a9a}
 #artRun{display:none;color:var(--ok)}
 body.projpy #artRun{display:grid}
+.tdot{width:9px;height:9px;border-radius:50%;flex:none;margin:2px}.tdot.ok{background:var(--ok)}.tdot.ko{background:var(--bad)}
 /* ---- Sparky Bot */
 .beta{font-size:10px;padding:1px 6px;border-radius:8px;background:#2f2846;color:#d9ccff;margin-left:auto}
 #botNav .mini{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff9,transparent 40%),var(--pc,#8c7cf0);flex:none;position:relative}
@@ -525,6 +526,7 @@ body.botmode #scroll,body.botmode footer,body.botmode #art{display:none!importan
     <div><label>CFG</label><input type="number" id="cfg" min="1" max="15" step="0.5"></div>
     <div><label>Essais max de l'agent</label><input type="number" id="maxs" min="1" max="12"></div>
   </div>
+  <div class="f" style="margin-top:14px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="autoT"><span>Tester et corriger automatiquement les projets</span></label></div>
   <div class="acts" style="margin-top:18px"><button id="setx">Annuler</button><button class="go" id="setok">Enregistrer</button></div>
 </div></div>
 <div id="pick"></div>
@@ -597,6 +599,8 @@ const EN={
  'ajuste la langue…':'adjusting the language…','affine le visage…':'refining the face…','réflexion trop longue, réponse directe…':'thinking too long, answering directly…',
  'le modèle tournait en boucle, nouvel essai…':'the model was looping, trying again…',"C'est prêt, regarde le panneau à droite.":"It's ready, see the panel on the right.",
  // projets
+ 'Test automatique : ça fonctionne':'Automatic test: it works','Test automatique : erreurs trouvées':'Automatic test: errors found','essai':'attempt',
+ 'Tester et corriger automatiquement les projets':'Automatically test and fix projects',
  'Console':'Console','Lancer le programme':'Run the program','▶ Lancer':'▶ Run','Envoyer l’erreur à l’assistant':'Send the error to the assistant',
  'point d’entrée':'entry point','Clique sur ▶ Lancer pour exécuter le programme sur ton PC (60 s max).':'Click ▶ Run to execute the program on your PC (60 s max).',
  'exécution…':'running…','(aucune sortie)':'(no output)','Le programme a planté à l’exécution':'The program crashed when run','Corrige les fichiers concernés.':'Fix the files involved.',
@@ -655,7 +659,7 @@ const EN_RX=[
  [/^La dictée vocale fonctionne hors ligne avec (.+) \(([\d.]+) Go à télécharger une seule fois\)\.\nLe télécharger maintenant \?$/,'Voice dictation works offline with $1 ($2 GB, downloaded once).\nDownload it now?'],
  [/^Micro inaccessible : ([\s\S]+)\nAutorise le micro pour cette page \(icône à gauche de l’adresse\)\.$/,'Microphone unavailable: $1\nAllow the microphone for this page (icon left of the address bar).'],
  [/^Dictée : (.+)$/,'Dictation: $1'],
- [/^écrit (.+)…$/,'writing $1…'],[/^(\d+) fichiers?( · .+)?$/,(m,a,b)=>a+(a==='1'?' file':' files')+(b||'')],[/^✓ terminé( · .+)?$/,(m,a)=>'✓ done'+(a||'')],[/^✗ code (.+)$/,'✗ exit code $1'],
+ [/^écrit (.+)…$/,'writing $1…'],[/^teste le projet « (.+) »…$/,'testing project "$1"…'],[/^(\d+) fichiers?( · .+)?$/,(m,a,b)=>a+(a==='1'?' file':' files')+(b||'')],[/^✓ terminé( · .+)?$/,(m,a)=>'✓ done'+(a||'')],[/^✗ code (.+)$/,'✗ exit code $1'],
  [/^Téléchargement du modèle de mémoire… (\d+) %$/,'Downloading the memory model… $1%'],[/^humeur perçue : (.+)$/,'perceived mood: $1'],[/^Écris à (.+)…$/,'Write to $1…'],
  [/^(.+) · (\d+) échanges · (\d+) jour\(s\) ensemble$/,'$1 · $2 messages · $3 day(s) together'],[/^(\d+) souvenirs oubliés$/,'$1 memories forgotten'],
  [/^Effacer toute la mémoire, le journal et l’historique de (.+) \?\nC’est définitif\.$/,'Erase all the memory, journal and history of $1?\nThis cannot be undone.'],
@@ -815,6 +819,7 @@ function onEvent(e,live){
     A().append(imgCard(U(e.id),e.id));T.act=null;if(live)showTyping('vérifie le résultat…');down();return}
   if(e.type==='artifact'){hideTyping();artDone(e,live);down();return}
   if(e.type==='project'){hideTyping();projDone(e,live);down();return}
+  if(e.type==='test'){hideTyping();testCard(e);down();return}
   if(e.type==='reply'){hideTyping();const r=T.reply||A().appendChild(el('div','t'));r.innerHTML=mdx(e.text);r.classList.remove('cursor');T.reply=null;down();return}
   if(e.type==='error'){hideTyping();stopTimer();A().append(el('div','err',esc(e.text)));T.act=null;down();return}
   if(e.type==='done'&&live&&T&&T.lastProj&&ARTS[T.lastProj]){const a=ARTS[T.lastProj];document.body.classList.remove('artlive');openArt(T.lastProj,projKind(a)==='web'?'view':projKind(a)==='py'?'run':'code')}
@@ -851,8 +856,12 @@ function fillProj(c,a,writing){const n=Object.keys(a.files).length;c.innerHTML='
   +(writing?'écrit '+esc(writing)+'…':n+(n>1?' fichiers':' fichier')+(a.entry?' · '+esc(a.entry):''))+'</small></span><span class="go2">Ouvrir ›</span>'}
 function projLive(e){const[id,a]=projOf(e);a.title=e.title||a.title;a.files[e.path]=e.content;a.cur=e.path;T.lastProj=id;
   fillProj(projCard(id),a,e.path);document.body.classList.add('artlive');if(ART!==id||!document.body.classList.contains('art'))openArt(id,'code');else renderArt(true)}
-function projDone(e,live){const[id,a]=projOf(e);a.title=e.title||a.title;a.files[e.path]=e.content;a.entry=e.entry;a.version=e.version;a.cur=a.cur||e.path;
+function projDone(e,live){const[id,a]=projOf(e);a.title=e.title||a.title;if(e.asset!=null){a.assets=a.assets||{};a.assets[e.path]=e.asset}else a.files[e.path]=e.content;a.entry=e.entry;a.version=e.version;a.cur=a.cur||e.path;
   T.lastProj=id;fillProj(projCard(id),a,null);document.body.classList.remove('artlive');if(live){a.cur=e.path;if(ART===id)renderArt()}}
+function testCard(e){const b=el('div','step ok');
+  b.innerHTML='<div class="row"><span class="tdot '+(e.ok?'ok':'ko')+'"></span><span>'+esc(tr(e.ok?'Test automatique : ça fonctionne':'Test automatique : erreurs trouvées'))+' · '+esc(e.title)+(e.round>1?' · '+esc(tr('essai'))+' '+e.round:'')+'</span><span class="tm">'+(e.secs||0)+' s</span></div>';
+  const d=el('details');d.innerHTML='<summary>'+esc(tr('détails'))+'</summary><code></code>';d.querySelector('code').textContent=e.output||'';b.append(d);A().append(b);
+  const a=ARTS[e.project];if(a){a.run={code:e.code,output:e.output,secs:e.secs};if(ART===e.project&&artTab==='run')renderArt()}}
 function renderProj(streaming){const a=ARTS[ART],k=projKind(a),B=$('artB');document.body.classList.toggle('projpy',k==='py');
   $('artT').textContent=a.title;$('artV').style.display='none';$('artTabs').style.display='';
   $('artTabs').querySelector('[data-t=view]').style.display=k==='web'?'':'none';$('artRunTab').style.display=k==='py'?'':'none';
@@ -863,8 +872,9 @@ function renderProj(streaming){const a=ARTS[ART],k=projKind(a),B=$('artB');docum
   if(tab==='run'){B.innerHTML='<div class="pcons"><div class="pbar"><button class="go" id="pRun">'+tr('▶ Lancer')+'</button><span id="pSt"></span><span class="sp"></span><button class="bbtn" id="pFix" style="display:none">'+tr('Envoyer l’erreur à l’assistant')+'</button></div><pre id="pOut"></pre></div>';
     $('pRun').onclick=runProj;$('pFix').onclick=fixProj;showRun(a);return}
   let box=B.querySelector('.pwrap');if(!box){B.innerHTML='<div class="pwrap"><div class="pfiles"></div><pre id="artCode"></pre></div>';box=B.querySelector('.pwrap')}
-  const files=Object.keys(a.files).sort((x,y)=>(y===a.entry)-(x===a.entry)||x.localeCompare(y)),cur=a.files[a.cur]!=null?a.cur:files[0];a.cur=cur;
-  const fl=box.querySelector('.pfiles');fl.innerHTML='';files.forEach(p=>{const b=el('button',p===cur?'on':'',esc(p)+(p===a.entry?'<span class="dot">●</span>':''));b.title=p===a.entry?tr('point d’entrée'):'';b.onclick=()=>{a.cur=p;renderArt()};fl.append(b)});
+  const files=[...Object.keys(a.files),...Object.keys(a.assets||{})].sort((x,y)=>(y===a.entry)-(x===a.entry)||x.localeCompare(y)),cur=files.includes(a.cur)?a.cur:files[0];a.cur=cur;
+  const fl=box.querySelector('.pfiles');fl.innerHTML='';files.forEach(p=>{const b=el('button',p===cur?'on':'',esc(p)+(p===a.entry?'<span class="dot">●</span>':''));b.title=p===a.entry?tr('point d’entrée'):'';if((a.assets||{})[p]!=null)b.prepend('🖼 ');b.onclick=()=>{a.cur=p;renderArt()};fl.append(b)});
+  if((a.assets||{})[cur]!=null){box.querySelector('pre').innerHTML='<div style="padding:16px"><img style="max-width:100%;border-radius:10px" src="/api/proj/'+encodeURIComponent(SID)+'/'+encodeURIComponent(ART)+'/'+cur+'"></div>';return}
   const pre=box.querySelector('pre'),stick=pre.scrollHeight-pre.scrollTop-pre.clientHeight<60;
   pre.innerHTML=(a.files[cur]||'').split('\n').map(l=>'<span>'+(esc(l)||' ')+'</span>').join('');if(streaming&&stick)pre.scrollTop=pre.scrollHeight}
 function showRun(a){const r=a.run;if(!r){$('pOut').textContent=tr('Clique sur ▶ Lancer pour exécuter le programme sur ton PC (60 s max).');return}
@@ -1234,7 +1244,7 @@ async function fillModelSelects(){await loadCat();
   const n=CAT.filter(m=>m.installed).length;$('libCount').textContent=n+' installés · '+(CAT.length-n)+' disponibles'}
 ['llmSel','imgSel'].forEach(id=>$(id).onchange=()=>{const m=CAT.find(c=>c.id===$(id).value);if(m&&!isActive(m)){$(id==='llmSel'?'llmInd':'imgInd').innerHTML=inds(m);useModel(m.id,m.label)}});
 function sysSummary(s){const a=s.assess;return '<b>'+esc(a.gpu||'Pas de GPU NVIDIA')+'</b> · '+s.hw.ram_gb.toFixed(0)+' Go · niveau <b>'+esc(a.tier_label)+'</b>'}
-async function openSettings(){$('set').style.display='grid';await fillModelSelects();$('steps').value=SET.steps;$('cfg').value=SET.cfg;$('maxs').value=SET.max_steps;
+async function openSettings(){$('set').style.display='grid';await fillModelSelects();$('steps').value=SET.steps;$('cfg').value=SET.cfg;$('maxs').value=SET.max_steps;$('autoT').checked=SET.autotest!==false;
   $('sysSum').innerHTML=sysSummary(SYS);const cur=CAT.find(m=>m.kind==='llm'&&isActive(m));thinkSeg($('thkSet'),!!(cur&&cur.think))}
 $('openSet').onclick=openSettings;
 $('langSel').value=LANG;$('langSel').onchange=()=>setLang($('langSel').value);
@@ -1275,7 +1285,7 @@ $('wOk').onclick=closeWelcome;
 loadCat().then(()=>{if(!ONB||!CAT.some(m=>m.kind==='llm'&&m.installed))showWelcome(!ONB)});
 $('setx').onclick=()=>$('set').style.display='none';
 $('set').onclick=e=>{if(e.target.id==='set')$('set').style.display='none'};
-$('setok').onclick=async()=>{await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings:{steps:+$('steps').value,cfg:+$('cfg').value,max_steps:+$('maxs').value}})});
+$('setok').onclick=async()=>{await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings:{steps:+$('steps').value,cfg:+$('cfg').value,max_steps:+$('maxs').value,autotest:$('autoT').checked}})});
   $('set').style.display='none'};
 
 // ---------- éditeur de zone

@@ -36,7 +36,8 @@ class busy:
 
 
 SETTINGS_FILE = os.path.join(DATA, "settings.json")
-SETTINGS = {"llm": None, "ckpt": None, "steps": 30, "cfg": 5.5, "max_steps": 6, "think": "off", "ui_lang": "en"}
+SETTINGS = {"llm": None, "ckpt": None, "steps": 30, "cfg": 5.5, "max_steps": 6, "think": "off", "ui_lang": "en",
+            "autotest": True}
 
 
 def load_settings():
@@ -331,6 +332,7 @@ def split_actions(raw):
     return [a for a in acts if a.get("action")] or [_obj(pairs)]
 
 
+MAX_FIX_ROUNDS = 3  # automatic test -> fix -> re-test rounds per message
 PLACEHOLDER = re.compile(r"^\s*\[[^\]]*(voir ARTIFACTS|see ARTIFACTS|artifact|fichier)[^\]]*\]\s*$|^\s*(\.\.\.|…|TODO\.?|// ?TODO.*|# ?TODO.*)\s*$", re.I | re.S)
 
 
@@ -542,32 +544,104 @@ class Session:
         return "\n".join(out)
 
     def missing_files(self, pids):
-        """Local CSS/JS files linked by a project's HTML pages but never written."""
+        """Local CSS/JS/images used by a project's HTML/CSS but never written or generated."""
         miss = []
         for pid in pids:
-            files = self.projects.get(pid, {}).get("files", {})
+            p = self.projects.get(pid, {})
+            files, assets = p.get("files", {}), p.get("assets", {})
             for path, content in files.items():
-                if not path.endswith((".html", ".htm")):
+                if path.endswith((".html", ".htm")):
+                    refs = re.findall(r"""(?:href|src)\s*=\s*["']([^"'#?:]+\.(?:css|js|png|jpe?g|webp|gif))["']""", content, re.I)
+                elif path.endswith(".css"):
+                    refs = re.findall(r"""url\(\s*["']?([^"')#?:]+\.(?:png|jpe?g|webp|gif))""", content, re.I)
+                else:
                     continue
                 base = path.rsplit("/", 1)[0] + "/" if "/" in path else ""
-                refs = re.findall(r"""(?:href|src)\s*=\s*["']([^"'#?:]+\.(?:css|js))["']""", content)
                 for r in refs:
-                    full = clean_path(base + r) if not r.startswith("/") else clean_path(r)
-                    if full not in files and full not in miss:
+                    parts = []  # resolves "../img/x.png" relative to the file
+                    for x in (base + r).split("/"):
+                        if x == "..":
+                            parts = parts[:-1]
+                        elif x not in ("", "."):
+                            parts.append(x)
+                    full = clean_path("/".join(parts))
+                    if full not in files and full not in assets and full not in miss:
                         miss.append(full)
         return miss
+
+    def guess_path(self, pid, a):
+        """Path of a file sent without one: its name ("style.css") at the place the HTML expects it
+        (css/style.css), else a conventional path for its language."""
+        name = clean_path(a.get("title") or "")
+        if "." not in name.rsplit("/", 1)[-1]:
+            name = ""
+        if name:
+            want = [m for m in self.missing_files({pid}) if m == name or m.endswith("/" + name.rsplit("/", 1)[-1])]
+            return want[0] if want else name
+        lang = str(a.get("language") or a.get("kind") or "").lower()
+        files = self.projects.get(pid, {}).get("files", {})
+        default = {"html": "index.html", "css": "css/style.css", "javascript": "js/app.js", "js": "js/app.js",
+                   "python": "main.py" if "main.py" not in files else "module.py", "markdown": "README.md"}.get(lang, "file.txt")
+        want = [m for m in self.missing_files({pid}) if m.endswith(default.rsplit(".", 1)[-1])]
+        return want[0] if want else default
+
+    def project_asset(self, a, image_id):
+        """A generated image becomes a file of the project (served to the preview, written to disk, zipped)."""
+        pid = re.sub(r"[^a-z0-9-]+", "-", str(a.get("project")).lower()).strip("-")[:40] or "projet"
+        p = self.projects.setdefault(pid, {"title": pid.replace("-", " ").strip().capitalize() or pid, "auto": True,
+                                           "entry": None, "files": {}, "version": 0})
+        path = clean_path(a.get("path"))
+        if not re.search(r"\.(png|jpe?g|webp|gif)$", path, re.I):
+            path += ".png"
+        p.setdefault("assets", {})[path] = image_id
+        p["version"] += 1
+        return pid, p, path
+
+    def asset_file(self, pid, path):
+        """Disk path of a project image, or None."""
+        i = self.projects.get(pid, {}).get("assets", {}).get(path)
+        img = self.images.get(i) or self.images.get(str(i))
+        return img["path"] if img else None
+
+    def test_projects(self, pids, ev, round_no):
+        """Runs the automatic test of each project; returns [(pid, result)] for the ones that fail."""
+        import checker
+        failed = []
+        for pid in sorted(pids):
+            p = self.projects.get(pid)
+            if not p:
+                continue
+            self._emit({"type": "status", "text": f"teste le projet « {p['title']} »"})
+            try:
+                r = checker.check(self, pid, p, config.APP_PORT)
+            except Exception as e:
+                r = {"ok": True, "kind": "?", "report": "", "output": f"(test impossible : {e})", "code": None, "secs": 0}
+            ev({"type": "test", "project": pid, "title": p["title"], "round": round_no, "ok": r["ok"], "kind": r["kind"],
+                "output": r["output"], "code": r["code"], "secs": r["secs"]})
+            p["last_report"] = "" if r["ok"] else r["report"]  # lets us spot a fix that changes nothing
+            if not r["ok"]:
+                failed.append((pid, r))
+        return failed
 
     def tool_project_file(self, a):
         """One file of a multi-file project (same "project" id, different "path")."""
         content = a.get("content") or ""
         path = clean_path(a.get("path"))
-        if not path or not content.strip():
-            raise RuntimeError("fichier de projet vide : envoie path et le contenu complet dans content")
+        if not path:
+            raise RuntimeError("chemin manquant : ajoute \"path\" (ex. \"js/app.js\") à ce fichier du projet")
+        if not content.strip():
+            raise RuntimeError(f"fichier « {path} » sans contenu : mets le fichier COMPLET dans \"content\"")
         check_content(path, content)
         pid = re.sub(r"[^a-z0-9-]+", "-", str(a.get("project") or a.get("id") or a.get("title") or "projet").lower()).strip("-")[:40] or "projet"
         p = self.projects.setdefault(pid, {"title": a.get("title") or pid, "entry": None, "files": {}, "version": 0})
-        if a.get("title") and not p["files"]:
-            p["title"] = a["title"]
+        title = str(a.get("title") or "")
+        if re.search(r"\.\w{1,5}$", p["title"]):
+            p["title"], p["auto"] = pid.replace("-", " ").capitalize(), True
+        if title and not re.search(r"\.\w{1,5}$", title) and (not p["files"] or p.get("auto")):
+            p["title"], p["auto"] = title, False  # a file name ("index.html") is never the project's title
+        if p["files"].get(path) == content and p.get("last_report"):
+            raise RuntimeError(f"« {path} » est renvoyé IDENTIQUE à la version précédente : rien n'a été corrigé. "
+                               f"Erreur à corriger :\n{p['last_report'][:1500]}")
         p["files"][path] = content
         p["version"] += 1
         if a.get("entry"):
@@ -970,14 +1044,22 @@ class Session:
             try:
                 max_steps, last_sig, nudges, tools_used = int(SETTINGS["max_steps"]), None, 0, False
                 past_replies = {e["text"].strip() for e in self.events if e.get("type") == "reply"}
-                self._pending, free, touched = [], 0, set()  # free: writing files does not use up the agent's attempts (max 20 files)
-                for it in range(max_steps + 1 + 20):
+                # free: writing files, project images and test rounds do not use up the agent's attempts
+                self._pending, free, touched, dirty, test_rounds, last_pid = [], 0, set(), set(), 0, None
+                replied = False
+                for it in range(max_steps + 1 + 60):
                     step = it - free
                     if step > max_steps:
                         break
                     if step == max_steps:
                         self.history.append({"role": "user", "text": "[Plus d'etape disponible : reponds maintenant avec action reply.]", "images": []})
                     act = self._pending.pop(0) if self._pending else self.ask_llm()
+                    if not isinstance(act, dict):
+                        act = {"action": "reply", "args": {"text": str(act)}}
+                    if not isinstance(act.get("args"), dict):  # models sometimes send args/notes as plain text
+                        act["args"] = {"text": act["args"]} if isinstance(act.get("args"), str) else {}
+                    if not isinstance(act.get("notes"), dict):
+                        act.pop("notes", None)
                     self.history.append({"role": "assistant", "text": json.dumps(act, ensure_ascii=False)})
                     for k, v in (act.get("notes") or {}).items():
                         try:
@@ -988,14 +1070,42 @@ class Session:
                     name, args = act.get("action"), act.get("args") or {}
                     if act.get("thought"):
                         ev({"type": "thought", "text": act["thought"]})
+                    if name == "artifact" and not args.get("path"):
+                        # a file without path: either a project file whose path was forgotten, or a single-file
+                        # artifact written while a project is being built (it belongs to that project)
+                        aid = str(args.get("id") or "").lower()
+                        named = re.sub(r"[^a-z0-9-]+", "-", str(args.get("project") or "").lower()).strip("-")[:40]
+                        target = named or next((p for p in self.projects if aid.startswith(p)), None) or (last_pid if touched else None)
+                        if target:
+                            args = args | {"project": target, "path": self.guess_path(target, args)}
                     if name == "artifact" and (args.get("path") or args.get("project")) and step < max_steps:
                         try:
                             pid, p, path = self.tool_project_file(args)
                             tools_used = True
                             touched.add(pid)
-                            free += 1 if free < 20 else 0
+                            last_pid = pid
+                            free += 1 if free < 60 else 0
+                            dirty.add(pid)
                             ev({"type": "project", "id": pid, "title": p["title"], "path": path, "content": p["files"][path],
                                 "entry": p["entry"], "version": p["version"]})
+                            if test_rounds and SETTINGS.get("autotest", True):  # fixing: re-test right after each fix (~5 s)
+                                failed = self.test_projects({pid}, ev, test_rounds + 1)
+                                if not failed:
+                                    dirty.discard(pid)
+                                    self.history.append({"role": "user", "images": [], "text":
+                                        "[TEST AUTOMATIQUE] Corrigé : le projet fonctionne maintenant. Réponds à l'utilisateur."})
+                                    continue
+                                test_rounds += 1
+                                if test_rounds > MAX_FIX_ROUNDS:
+                                    dirty.discard(pid)
+                                    self.history.append({"role": "user", "images": [], "text":
+                                        "[TEST AUTOMATIQUE] Toujours en erreur. Arrête les corrections et réponds honnêtement à "
+                                        "l'utilisateur (ce qui marche, l'erreur restante)."})
+                                    continue
+                                self.history.append({"role": "user", "images": [], "text":
+                                    f"[TEST AUTOMATIQUE] Re-testé après ta correction : toujours une erreur.\n{failed[0][1]['report']}\n"
+                                    "Corrige le fichier concerné (contenu COMPLET)."})
+                                continue
                             self.history.append({"role": "user", "images": [], "text":
                                 f"[PROJET] « {p['title']} » (project {pid}) : {path} enregistré. Fichiers : {', '.join(p['files'])} "
                                 f"(entry {p['entry']}). S'il manque des fichiers référencés (CSS, JS, modules…), envoie le suivant avec "
@@ -1008,7 +1118,7 @@ class Session:
                         try:
                             aid, art = self.tool_artifact(args)
                             tools_used, n = True, len(art["versions"])
-                            free += 1 if free < 20 else 0
+                            free += 1 if free < 60 else 0
                             ev({"type": "artifact", "id": aid, "title": art["title"], "kind": art["kind"],
                                 "language": art["language"], "version": n, "content": art["versions"][-1]})
                             # the history keeps a simple mention: the up-to-date content is given at the end of the context
@@ -1036,13 +1146,30 @@ class Session:
                             nudges += 1
                             self.history.append({"role": "user", "images": [], "text": nudge})
                             continue
-                        text = self.fix_language(text or act.get("thought") or "...")
+                        warn = ""
+                        if dirty and SETTINGS.get("autotest", True):  # the project is "done": build / run it before answering
+                            failed = self.test_projects(dirty, ev, test_rounds + 1)
+                            if failed and test_rounds < MAX_FIX_ROUNDS:
+                                test_rounds += 1
+                                free += 1
+                                self.history.append({"role": "user", "images": [], "text": "[TEST AUTOMATIQUE] " + "\n\n".join(
+                                    f"Le projet « {self.projects[p]['title']} » (project {p}) a été exécuté et ne fonctionne pas encore :\n{r['report']}"
+                                    for p, r in failed) + "\n\nCorrige la cause : renvoie les fichiers concernés COMPLETS (même project, même path). "
+                                    "Le projet sera re-testé automatiquement ; ne réponds pas à l'utilisateur avant que ce soit corrigé."})
+                                continue
+                            if failed:
+                                warn = (f"\n\n⚠️ Les tests automatiques échouent encore après {MAX_FIX_ROUNDS} corrections : regarde la Console du projet."
+                                        if self.lang == "French" else
+                                        f"\n\n⚠️ The automatic tests still fail after {MAX_FIX_ROUNDS} fixes: see the project's Console.")
+                            dirty.clear()
+                        text = self.fix_language(text or act.get("thought") or "...") + warn
                         if "```" in text:
                             short = self.auto_artifacts(text, ev)
                             if short != text:  # the code lives in the artifact: the history keeps no copy of it
                                 self.history[-1]["text"] = json.dumps(act | {"args": {"text": short + " [code dans l'artifact, voir ARTIFACTS]"}}, ensure_ascii=False)
                                 text = short
                         ev({"type": "reply", "text": text})
+                        replied = True
                         break
                     sig = json.dumps([name, args], sort_keys=True)
                     if sig == last_sig:
@@ -1050,11 +1177,30 @@ class Session:
                             "[REFUSED] Identical arguments to the previous attempt. Change something concrete, or reply."})
                         continue
                     last_sig = sig
+                    if name == "generate" and args.get("project") and args.get("path"):
+                        made = self.projects.get(re.sub(r"[^a-z0-9-]+", "-", str(args["project"]).lower()).strip("-")[:40], {}).get("assets", {})
+                        want = clean_path(args["path"])
+                        if want in made or want + ".png" in made:  # already generated for this project: no duplicate
+                            free += 1 if free < 60 else 0
+                            self.history.append({"role": "user", "images": [], "text":
+                                f"[DEJA FAIT] L'image « {want} » existe déjà dans le projet : ne la régénère pas. "
+                                "Continue avec les fichiers ou images qui manquent, ou réponds."})
+                            continue
                     ev({"type": "tool", "name": name, "args": args})
                     try:
                         tools_used = True
                         new, crops = (self.tool_generate if name == "generate" else self.tool_edit)(args)
                         ev({"type": "image", "id": new, "refs": crops})
+                        saved = ""
+                        if args.get("project") and args.get("path"):  # image made for a project (website illustration...)
+                            pid, p, path = self.project_asset(args, new)
+                            touched.add(pid)
+                            last_pid = pid
+                            dirty.add(pid)
+                            free += 1 if free < 60 else 0
+                            ev({"type": "project", "id": pid, "title": p["title"], "path": path, "asset": new,
+                                "entry": p["entry"], "version": p["version"]})
+                            saved = f" Elle est enregistrée dans le projet {pid} sous « {path} » : utilise exactement ce chemin relatif dans le HTML/CSS."
                         left = max_steps - step - 1
                         parent = self.images[new].get("parent")
                         local = name == "edit" and isinstance(args.get("region"), list)
@@ -1064,11 +1210,24 @@ class Session:
                                + (f"Compare la zone modifiee avec l'original #{parent} : dans \"thought\", liste ce qui se trouve "
                                   f"MAINTENANT a cet endroit. Un objet qui n'y etait pas (ou qui a juste change de forme) = echec. "
                                   if local and parent else "")
-                               + f"Si c'est bon : reply. Sinon corrige et relance ({left} etape(s) restante(s)).")
+                               + saved + f" Si c'est bon : continue (autres fichiers ou images du projet) ou reply. "
+                               f"Sinon corrige et relance ({left} etape(s) restante(s)).")
                         self.history.append({"role": "user", "text": obs, "images": [new] + crops})
                     except Exception as e:
                         ev({"type": "error", "text": str(e)})
                         self.history.append({"role": "user", "text": f"[ERREUR OUTIL] {e}. Corrige les arguments ou explique le probleme a l'utilisateur.", "images": []})
+                if not replied:  # out of attempts: never end a turn in silence, say honestly where things stand
+                    fr = self.lang == "French"
+                    done = [f"« {self.projects[p]['title']} » ({len(self.projects[p]['files'])} fichiers)" if fr else
+                            f"\"{self.projects[p]['title']}\" ({len(self.projects[p]['files'])} files)" for p in touched]
+                    miss = self.missing_files(touched)
+                    text = (("Je n'ai pas réussi à tout terminer dans le nombre d'étapes prévu. " if fr else
+                             "I could not finish everything within the allowed number of steps. ")
+                            + ((("Ce qui est prêt : " if fr else "What is ready: ") + ", ".join(done) + ". ") if done else "")
+                            + ((("Il manque encore : " if fr else "Still missing: ") + ", ".join(miss) + ". ") if miss else "")
+                            + ("Dis-moi « continue » pour que je reprenne." if fr else "Say \"continue\" and I will pick up from there."))
+                    self.history.append({"role": "assistant", "text": json.dumps({"action": "reply", "args": {"text": text}}, ensure_ascii=False)})
+                    ev({"type": "reply", "text": text})
             except Exception as e:
                 ev({"type": "error", "text": f"assistant indisponible : {e}"})
             finally:
