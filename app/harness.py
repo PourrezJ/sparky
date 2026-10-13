@@ -305,6 +305,49 @@ def _comfy_run(graph):
     return os.path.join(COMFY_OUT, im.get("subfolder", ""), im["filename"])
 
 
+class _Pairs(list):
+    pass
+
+
+def _obj(x):
+    if isinstance(x, _Pairs):
+        return {k: _obj(v) for k, v in x}
+    if isinstance(x, list):
+        return [_obj(v) for v in x]
+    return x
+
+
+def split_actions(raw):
+    """Some models pack several actions in ONE object ({"action":"artifact",...,"action":"reply",...}).
+    Plain json.loads keeps only the last duplicate key (the artifact was lost): split them, in order."""
+    pairs = json.loads(raw, object_pairs_hook=_Pairs)
+    acts, cur = [], {}
+    for k, v in pairs:
+        if k in cur:  # a key seen twice starts the next action
+            acts.append(cur)
+            cur = {}
+        cur[k] = _obj(v)
+    acts.append(cur)
+    return [a for a in acts if a.get("action")] or [_obj(pairs)]
+
+
+PLACEHOLDER = re.compile(r"^\s*\[[^\]]*(voir ARTIFACTS|see ARTIFACTS|artifact|fichier)[^\]]*\]\s*$|^\s*(\.\.\.|…|TODO\.?|// ?TODO.*|# ?TODO.*)\s*$", re.I | re.S)
+
+
+def check_content(path, content):
+    """Refuses placeholders and stubs: the model must send the complete file (it gets a precise error and retries)."""
+    code = re.sub(r"(?m)^\s*(//|#).*$", "", content).strip()  # without comments
+    if PLACEHOLDER.match(content) or (str(path).endswith((".js", ".py", ".css", "javascript", "python", "css")) and len(code) < 40):
+        raise RuntimeError(f"« {path} » est vide ou ne contient qu'un texte de remplacement. Renvoie ce fichier avec son "
+                           "contenu COMPLET et fonctionnel (vrai code, pas de note ni de « ... »).")
+
+
+def clean_path(p):
+    """Relative path inside a project (no drive, no '..', forward slashes)."""
+    parts = [x for x in re.split(r"[\\/]+", str(p or "").strip()) if x not in ("", ".", "..") and ":" not in x]
+    return "/".join(re.sub(r"[^\w.\-]+", "_", x) for x in parts)[:120]
+
+
 def json_closed(t, st):
     """Tracks the text as it streams: True once the first JSON object {...} is closed (st['pos'] = its end)."""
     i = st["pos"]
@@ -337,7 +380,7 @@ def partial_json(buf):
     m = re.search(r'"action"\s*:\s*"(\w+)"', buf)
     if m:
         out["action"] = m.group(1)
-    keys = ("thought", "text") + (("id", "title", "kind", "language", "content") if out.get("action") == "artifact" else ())
+    keys = ("thought", "text") + (("id", "project", "path", "title", "kind", "language", "content") if out.get("action") == "artifact" else ())
     for key in keys:
         m = re.search(r'"%s"\s*:\s*"((?:[^"\\]|\\.)*)' % key, buf)
         if m:
@@ -400,6 +443,8 @@ class Session:
         self._read = False
         self.lang = None  # conversation language (updated on each unambiguous message)
         self.artifacts = {}  # id -> {title, kind, language, versions: [content, ...]}
+        self.projects = {}   # id -> {title, entry, files: {path: content}, version}: multi-file projects
+        self._pending = []   # actions left over from a response that packed several of them
 
     # -- persistence
     def title(self):
@@ -411,7 +456,7 @@ class Session:
     def save(self):
         if self.ephemeral:
             return
-        st = {k: getattr(self, k) for k in ("images", "masks", "history", "events", "n", "lang", "artifacts")}
+        st = {k: getattr(self, k) for k in ("images", "masks", "history", "events", "n", "lang", "artifacts", "projects")}
         st["title"] = self.title()
         with open(os.path.join(self.dir, "session.json"), "w", encoding="utf-8") as f:
             json.dump(st, f, ensure_ascii=False)
@@ -447,6 +492,7 @@ class Session:
             s.history, s.events, s.n = st["history"], st["events"], st["n"]
             s.lang = st.get("lang")
             s.artifacts = st.get("artifacts", {})
+            s.projects = st.get("projects", {})
         return s
 
 
@@ -479,12 +525,61 @@ class Session:
 
     def _artifacts(self):
         """Current content of each artifact (the history only keeps a mention, to avoid duplicating it)."""
-        if not self.artifacts:
+        if not self.artifacts and not self.projects:
             return ""
         out = ["\n\nARTIFACTS (current content, reuse the id to update):"]
+        # the history keeps each action with its full content; a file is repeated here only when its current
+        # version is no longer visible in the history window (trimmed) - avoids sending the same code twice
+        visible = "\n".join(h["text"] for h in self.history[-40:] if h["role"] == "assistant")
+
+        def body(content):
+            return "(current version: the one in your last artifact action above)" if json.dumps(content, ensure_ascii=False)[1:-1] in visible else content
         for aid, a in self.artifacts.items():
-            out.append(f'--- id "{aid}" · "{a["title"]}" · kind {a["kind"]} · v{len(a["versions"])}\n{a["versions"][-1]}')
+            out.append(f'--- id "{aid}" · "{a["title"]}" · kind {a["kind"]} · v{len(a["versions"])}\n{body(a["versions"][-1])}')
+        for pid, p in self.projects.items():
+            out.append(f'--- PROJECT "{pid}" · "{p["title"]}" · entry {p.get("entry")} · files: {", ".join(p["files"])}')
+            out += [f"### {path}\n{body(content)}" for path, content in p["files"].items()]
         return "\n".join(out)
+
+    def missing_files(self, pids):
+        """Local CSS/JS files linked by a project's HTML pages but never written."""
+        miss = []
+        for pid in pids:
+            files = self.projects.get(pid, {}).get("files", {})
+            for path, content in files.items():
+                if not path.endswith((".html", ".htm")):
+                    continue
+                base = path.rsplit("/", 1)[0] + "/" if "/" in path else ""
+                refs = re.findall(r"""(?:href|src)\s*=\s*["']([^"'#?:]+\.(?:css|js))["']""", content)
+                for r in refs:
+                    full = clean_path(base + r) if not r.startswith("/") else clean_path(r)
+                    if full not in files and full not in miss:
+                        miss.append(full)
+        return miss
+
+    def tool_project_file(self, a):
+        """One file of a multi-file project (same "project" id, different "path")."""
+        content = a.get("content") or ""
+        path = clean_path(a.get("path"))
+        if not path or not content.strip():
+            raise RuntimeError("fichier de projet vide : envoie path et le contenu complet dans content")
+        check_content(path, content)
+        pid = re.sub(r"[^a-z0-9-]+", "-", str(a.get("project") or a.get("id") or a.get("title") or "projet").lower()).strip("-")[:40] or "projet"
+        p = self.projects.setdefault(pid, {"title": a.get("title") or pid, "entry": None, "files": {}, "version": 0})
+        if a.get("title") and not p["files"]:
+            p["title"] = a["title"]
+        p["files"][path] = content
+        p["version"] += 1
+        if a.get("entry"):
+            p["entry"] = clean_path(a["entry"])
+        names = list(p["files"])
+        main = next((n for n in ("index.html", "main.py") if n in names), None)
+        if main:  # the conventional entry always wins (models sometimes name a module as the entry)
+            p["entry"] = main
+        elif not p["entry"] or p["entry"] not in p["files"]:
+            p["entry"] = next((n for n in ("app.py",) if n in names), None) or \
+                next((n for n in names if n.endswith((".html", ".py"))), names[0])
+        return pid, p, path
 
     def auto_artifacts(self, text, ev):
         """Safety net: when a model pastes an HTML page or long code into its reply instead of
@@ -508,6 +603,7 @@ class Session:
         content = a.get("content") or ""
         if not content.strip():
             raise RuntimeError("artifact vide : envoie le contenu complet dans args.content")
+        check_content(a.get("path") or a.get("language") or "", content)
         aid = re.sub(r"[^a-z0-9-]+", "-", str(a.get("id") or a.get("title") or "artifact").lower()).strip("-")[:40] or "artifact"
         kind = a.get("kind") if a.get("kind") in ("html", "code", "markdown", "svg") else "code"
         art = self.artifacts.setdefault(aid, {"title": a.get("title") or aid, "kind": kind,
@@ -625,7 +721,9 @@ class Session:
             t = t[:js["pos"]]
         m = re.search(r"\{.*\}", t, re.S)
         try:
-            return json.loads(m.group(0))
+            acts = split_actions(m.group(0))
+            self._pending = acts[1:]  # several actions packed in one object: run them in order, without asking again
+            return acts[0]
         except Exception:
             if retry:  # a single retry with a format reminder
                 self.history.append({"role": "user", "images": [], "text":
@@ -872,10 +970,14 @@ class Session:
             try:
                 max_steps, last_sig, nudges, tools_used = int(SETTINGS["max_steps"]), None, 0, False
                 past_replies = {e["text"].strip() for e in self.events if e.get("type") == "reply"}
-                for step in range(max_steps + 1):
+                self._pending, free, touched = [], 0, set()  # free: writing files does not use up the agent's attempts (max 20 files)
+                for it in range(max_steps + 1 + 20):
+                    step = it - free
+                    if step > max_steps:
+                        break
                     if step == max_steps:
                         self.history.append({"role": "user", "text": "[Plus d'etape disponible : reponds maintenant avec action reply.]", "images": []})
-                    act = self.ask_llm()
+                    act = self._pending.pop(0) if self._pending else self.ask_llm()
                     self.history.append({"role": "assistant", "text": json.dumps(act, ensure_ascii=False)})
                     for k, v in (act.get("notes") or {}).items():
                         try:
@@ -886,15 +988,30 @@ class Session:
                     name, args = act.get("action"), act.get("args") or {}
                     if act.get("thought"):
                         ev({"type": "thought", "text": act["thought"]})
+                    if name == "artifact" and (args.get("path") or args.get("project")) and step < max_steps:
+                        try:
+                            pid, p, path = self.tool_project_file(args)
+                            tools_used = True
+                            touched.add(pid)
+                            free += 1 if free < 20 else 0
+                            ev({"type": "project", "id": pid, "title": p["title"], "path": path, "content": p["files"][path],
+                                "entry": p["entry"], "version": p["version"]})
+                            self.history.append({"role": "user", "images": [], "text":
+                                f"[PROJET] « {p['title']} » (project {pid}) : {path} enregistré. Fichiers : {', '.join(p['files'])} "
+                                f"(entry {p['entry']}). S'il manque des fichiers référencés (CSS, JS, modules…), envoie le suivant avec "
+                                "le même project. Sinon termine par une courte reply (sans recopier le code)."})
+                        except Exception as e:  # incomplete file: the model gets the reason and rewrites it
+                            self._emit({"type": "status", "text": "fichier incomplet, nouvel essai"})
+                            self.history.append({"role": "user", "images": [], "text": f"[ERREUR PROJET] {e}"})
+                        continue
                     if name == "artifact" and step < max_steps:
                         try:
                             aid, art = self.tool_artifact(args)
                             tools_used, n = True, len(art["versions"])
+                            free += 1 if free < 20 else 0
                             ev({"type": "artifact", "id": aid, "title": art["title"], "kind": art["kind"],
                                 "language": art["language"], "version": n, "content": art["versions"][-1]})
                             # the history keeps a simple mention: the up-to-date content is given at the end of the context
-                            self.history[-1]["text"] = json.dumps(
-                                act | {"args": args | {"content": f"[artifact {aid} v{n} : voir ARTIFACTS]"}}, ensure_ascii=False)
                             self.history.append({"role": "user", "images": [], "text":
                                 f"[ARTIFACT] \"{art['title']}\" (id {aid}) v{n} est affiché à l'utilisateur dans le panneau à droite. "
                                 "Termine maintenant par une courte reply (sans recopier le code)."})
@@ -910,6 +1027,9 @@ class Session:
                         elif step < max_steps and not tools_used and ANNOUNCE.search(text):
                             nudge = ("[ACTION] You announced an action without doing it. Do it NOW with generate or edit "
                                      "(do not describe it), or ask one precise question if something is truly unclear.")
+                        elif step < max_steps and (miss := self.missing_files(touched)):
+                            nudge = (f"[PROJET] Ces fichiers sont utilisés mais n'existent pas encore : {', '.join(miss)}. "
+                                     "Envoie-les maintenant (même project, contenu complet), puis termine par une reply.")
                         elif text.strip() in past_replies:
                             nudge = "[REPEAT] This exact reply was already sent earlier. Write a new reply that describes THIS result honestly."
                         if nudge and nudges < 2:

@@ -27,6 +27,7 @@ everything runs on your own PC. Nothing is sent to the internet.</p>
 
 - **Chat like ChatGPT, offline** — conversation history, plus **temporary chats** that are never saved.
 - **Code & apps panel** — ask for a game, a web page, a tool or a script: it is written live in a panel next to the chat, with a **running preview**, the code, versions, copy and download.
+- **Multi-file projects** — "build me a mini project": a website with `index.html` + `css/` + `js/`, or a Python program split in modules. Files are written one by one, the preview serves the whole project, **▶ Run** executes Python projects (only when you click it, 60 s max) with the output in a console, one click sends an error back to the assistant to fix it, and the project downloads as a ZIP.
 - **Images** — generate and edit pictures by simply asking ("make it snow", "remove the bottle"). The agent checks its own result and retries when needed.
 - **Vision** — drop photos, screenshots or scanned documents: the assistant sees and analyses them.
 - **Sparky Bot (beta)** — a companion that remembers you, learns your style and grows with you, with a memory you can see and edit ([details](#-sparky-bot--personal-companion-with-memory-beta-in-progress)).

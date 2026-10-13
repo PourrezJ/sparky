@@ -252,6 +252,33 @@ def metrics():
                       "active": harness.ACTIVITY["image"] > 0 or comfy["running"] > 0, "queue": comfy["pending"]}}
 
 
+def run_project(s, pid, p):
+    """Writes the project to <session>/projects/<id>/ and runs its entry (Python), 60 s max, output captured."""
+    import harness as h
+    root = os.path.join(s.dir, "projects", pid)
+    shutil.rmtree(root, ignore_errors=True)
+    for fp, content in p["files"].items():
+        dest = os.path.join(root, *h.clean_path(fp).split("/"))
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest, "w", encoding="utf-8", newline="") as f:
+            f.write(content)
+    entry = p.get("entry") or ""
+    if entry.endswith(".py"):
+        cmd = [sys.executable, "-X", "utf8", entry]
+    elif entry.endswith(".js") and shutil.which("node"):
+        cmd = ["node", entry]
+    else:
+        return {"code": None, "output": "Ce projet n'a pas de programme à lancer : c'est un site, ouvre l'onglet Aperçu.", "secs": 0, "dir": root}
+    t0 = time.time()
+    try:
+        r = subprocess.run(cmd, cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+                           stdin=subprocess.DEVNULL, creationflags=NOWIN, env=os.environ | {"PYTHONIOENCODING": "utf-8"})
+        out, code = (r.stdout or "") + (("\n" + r.stderr) if r.stderr else ""), r.returncode
+    except subprocess.TimeoutExpired as e:
+        out, code = ((e.stdout or "") if isinstance(e.stdout, str) else "") + "\n[arrêté au bout de 60 s]", -1
+    return {"code": code, "output": out[-20000:], "secs": round(time.time() - t0, 1), "cmd": " ".join(cmd[-1:]), "dir": root}
+
+
 def decode_image(data_url):
     return Image.open(io.BytesIO(base64.b64decode(data_url.split(",", 1)[1])))
 
@@ -304,8 +331,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.send(200, open(s.images[int(n)]["path"], "rb").read(), "image/png")
             except (AttributeError, KeyError, ValueError, OSError):
                 return self.send(404, {"error": "image inconnue"})
+        if path.startswith("/api/proj/"):  # /api/proj/<session>/<project>/<path> : project files, for the live preview
+            import mimetypes
+            from urllib.parse import unquote
+            try:
+                sid, pid, fpath = unquote(path[len("/api/proj/"):]).split("/", 2)
+                s = sessions.get(sid) or get_session(sid)
+                files = s.projects[pid]["files"]
+                body = files.get(fpath) if fpath else None
+                if body is None:
+                    return self.send(404, b"not found", "text/plain")
+                ctype = mimetypes.guess_type(fpath)[0] or "text/plain"
+                return self.send(200, body.encode(), ctype + ("; charset=utf-8" if ctype.startswith(("text/", "application/javascript", "application/json", "image/svg")) else ""))
+            except (AttributeError, KeyError, ValueError):
+                return self.send(404, b"not found", "text/plain")
+        if path == "/api/projzip":  # whole project as a ZIP
+            import zipfile
+            s = sessions.get(q.get("id")) or get_session(q.get("id", ""))
+            p = (s.projects if s else {}).get(q.get("project"))
+            if not p:
+                return self.send(404, {"error": "projet inconnu"})
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                for fp, content in p["files"].items():
+                    z.writestr(f"{q['project']}/{fp}", content)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Disposition", f'attachment; filename="{q["project"]}.zip"')
+            self.send_header("Content-Length", str(buf.tell()))
+            self.end_headers()
+            self.wfile.write(buf.getvalue())
+            return
         if path == "/api/settings":
-            known = {m["ckpt"] for m in catalog.CATALOG if m["kind"] == "image"}
+            known ={m["ckpt"] for m in catalog.CATALOG if m["kind"] == "image"}
             others = [c for c in checkpoints() if c not in known and not catalog.blocked(c)]
             return self.send(200, {"settings": harness.SETTINGS, "catalog": catalog.listing(harness.SETTINGS),
                                    "otherCheckpoints": others, "active": {"llm": llm_state["name"], "voice": voice_model()[0]["id"]},
@@ -370,6 +428,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, {"ok": True})
         if self.path == "/api/syscheck":
             return self.send(200, syscheck.run())
+        if self.path == "/api/projrun":  # runs a Python project, only when the user clicks Run
+            s = sessions.get(b.get("id")) or get_session(b.get("id") or "")
+            p = (s.projects if s else {}).get(b.get("project"))
+            if not p:
+                return self.send(404, {"error": "projet inconnu"})
+            return self.send(200, run_project(s, b["project"], p))
         if self.path.startswith("/api/bot/"):
             return self.bot(self.path[len("/api/bot/"):], b)
         if self.path == "/api/onboarded":
