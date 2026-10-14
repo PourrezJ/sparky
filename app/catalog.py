@@ -22,7 +22,7 @@ def _first(*paths):
 MTP = _first(os.path.join(M, "mtp-Qwen3.8-27B-Q4_0.gguf"), os.path.join(os.path.dirname(M), "mtp", "mtp-Qwen3.8-27B-Q4_0.gguf"))
 BLOCKED = ("uncensor", "abliterat", "heretic", "nsfw", "lustify", "pony", "unfilter", "unaligned", "jailbreak",
            "erotic", "porn", "hentai", "lewd", "nude", "xxx", "18+", "hauhau", "dolphin", "not-for-all-audiences")
-NOWIN = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+NOWIN = config.NOWIN
 
 
 def blocked(*texts):
@@ -147,11 +147,16 @@ def _ok(f):
 
 def installed(m):
     """An assistant is usable as soon as its model is present; vision (mmproj) is an add-on."""
+    if m.get("cloud"):  # cloud model: usable once its provider has a key
+        import cloud
+        return cloud.has_key(m["provider"])
     files = m["files"][:1] if m["kind"] == "llm" else m["files"]
     return all(_ok(f) for f in files if f)
 
 
 def has_vision(m):
+    if m.get("cloud"):
+        return m.get("vision", False)
     return m["kind"] == "llm" and len(m["files"]) > 1 and _ok(m["files"][1])
 
 
@@ -167,6 +172,8 @@ def indicators(m, measured=None, sysinfo=None):
     if sysinfo is None:
         import syscheck
         sysinfo = syscheck.current()
+    if m.get("cloud"):  # runs on the provider's servers: no memory used here
+        return {"speed": 3, "fit": 2, "tps": 0, "measured": False}
     a = sysinfo["assess"]
     mem, bw, img = a["model_mem_gb"], a["bandwidth"], a["image_gb"] if a["images"] else 0
     if m["kind"] == "llm":
@@ -223,10 +230,14 @@ def _install(mid):
         job.update(state="error", error=str(e))
 
 
+_jobs_lock = threading.Lock()
+
+
 def install(mid):
-    if mid not in BY_ID or jobs.get(mid, {}).get("state") == "running":
-        return
-    jobs[mid] = {"done": 0, "total": int(BY_ID[mid]["size_gb"] * 2**30), "state": "running", "error": ""}
+    with _jobs_lock:  # two clicks must not start two downloads writing the same file
+        if mid not in BY_ID or jobs.get(mid, {}).get("state") == "running":
+            return
+        jobs[mid] = {"done": 0, "total": int(BY_ID[mid]["size_gb"] * 2**30), "state": "running", "error": ""}
     threading.Thread(target=_install, args=(mid,), daemon=True).start()
 
 
@@ -237,12 +248,14 @@ def listing(settings):
     out = []
     for m in CATALOG:
         meas = settings.get("speed", {}).get(m["id"] if m["kind"] == "llm" else "img:" + m["ckpt"])
+        inst = installed(m)  # checks up to 11 files: once per model
+        vis = has_vision(m) if inst else m.get("vision", False)
         out.append({k: m.get(k) for k in ("id", "kind", "label", "quality", "size_gb", "desc", "repo", "ckpt")}
-                   | {"style": m.get("style", ""), "installed": installed(m), "job": jobs.get(m["id"]),
-                      "vision": has_vision(m) if installed(m) else m.get("vision", False),
-                      "visionMissing": installed(m) and m.get("vision", False) and not has_vision(m),
+                   | {"style": m.get("style", ""), "installed": inst, "job": jobs.get(m["id"]), "vision": vis,
+                      "visionMissing": inst and m.get("vision", False) and not vis,
                       "visionGb": 0.9 if m.get("vision") else 0,
                       "think": m.get("think", False), "custom": m.get("custom", False),
+                      "cloud": m.get("providerLabel") if m.get("cloud") else None,
                       "recommended": m["id"] in rec, "qualityGuess": m.get("qualityGuess", False),
                       **indicators(m, meas, info)})
     return out
@@ -268,17 +281,16 @@ def quality_guess(total_b):
 
 
 def load_custom():
-    if os.path.exists(CUSTOM_FILE):
-        for m in json.load(open(CUSTOM_FILE, encoding="utf-8")):
-            m["files"] = [tuple(f) if f else None for f in m["files"]]
+    for m in config.read_json(CUSTOM_FILE, []) or []:
+        if isinstance(m, dict) and m.get("id"):
+            m["files"] = [tuple(f) if f else None for f in m.get("files", [])]
             if m["id"] not in BY_ID and not blocked(m["id"], m.get("repo", "")):
                 CATALOG.append(m)
                 BY_ID[m["id"]] = m
 
 
 def save_custom():
-    os.makedirs(os.path.dirname(CUSTOM_FILE), exist_ok=True)
-    json.dump([m for m in CATALOG if m.get("custom")], open(CUSTOM_FILE, "w", encoding="utf-8"), indent=1)
+    config.write_json(CUSTOM_FILE, [m for m in CATALOG if m.get("custom")])
 
 
 def hf_get(path):

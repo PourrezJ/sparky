@@ -35,6 +35,7 @@ everything runs on your own PC. Nothing is sent to the internet.</p>
 - **Voice dictation, offline** — click the mic, talk, stop: Whisper turns your voice into text right in the input box.
 - **Adjustable thinking** — Off, Light, Normal or Deep, right from the model menu.
 - **System scan** — at install time (and anytime from *Settings > System*) Sparky checks your GPU, memory and disk, then **recommends the models that fit your machine**.
+- **Cloud models, if you want** — add an OpenRouter, Claude, OpenAI (or other) key in the settings to use cloud models too. Off by default.
 - **Models already on your PC** — on first launch Sparky looks for the models you already have (LM Studio, Ollama, Hugging Face cache, Jan, GPT4All, llama.cpp, other ComfyUI installs, any folder) and uses them in one click, without downloading them again.
 - **Model library** — one-click installs with resumable downloads, and speed / quality / memory indicators *for your hardware*.
 - **Only official models** — Qwen, Gemma, gpt-oss, Nemotron, FLUX.2, Whisper… "uncensored", "abliterated" or NSFW variants are excluded from the catalog and from the Hugging Face search.
@@ -188,9 +189,29 @@ runtime\venv\Scripts\python.exe app\models_cli.py qwen359        # install one m
 - **Update**: Sparky checks GitHub once an hour. When a new version is out, a message offers to **install the update**: Sparky runs `git pull` and restarts by itself. If files were modified locally, it lists them and gives the command to put them aside first; for an install made from the ZIP, it gives the install command to run again. The current version is in *Settings > Version* (and in the `VERSION` file).
 - **Uninstall**: `stop.bat`, then delete the install folder (`%LOCALAPPDATA%\Sparky` by default) and the shortcuts.
 
+## Cloud models (optional)
+
+Sparky is 100% local by default. If you want, *Settings > Cloud models* lets you add a key for **OpenRouter, Anthropic (Claude), OpenAI, Google Gemini, Mistral, Groq, DeepSeek, xAI**, or any **OpenAI-compatible** server (LM Studio, vLLM, a company proxy...). Pick a model in the provider's list: it appears in the model menu with a ☁, and switching to it frees your GPU.
+
+- Keys stay on your PC (`data\cloud.json`) and are never sent back to the page.
+- While a cloud model is active, the footer says so: your messages, images and attached files then go to that provider.
+- Claude goes through the official `anthropic` SDK (adaptive thinking, effort, refusal fallback); the others through their OpenAI-compatible API.
+
 ## Privacy
 
-Everything runs on your machine: conversations, images and models stay in the install folder (`data\`, `models\`). The only outgoing connections download the tools and models (GitHub, PyPI, Hugging Face) and search the model library.
+Everything runs on your machine: conversations, images and models stay in the install folder (`data\`, `models\`). The only outgoing connections download the tools and models (GitHub, PyPI, Hugging Face), search the model library, check for updates (the `VERSION` file on GitHub), and — only if you add one — talk to a cloud provider.
+
+The local API only answers the Sparky page itself: requests from other websites (cross-site or DNS rebinding) are refused, and the projects the assistant writes run on their own origin (port 7861), so their code cannot drive Sparky.
+
+## Development
+
+```powershell
+runtime\venv\Scripts\python.exe -m pip install pytest ruff
+runtime\venv\Scripts\python.exe -m ruff check app tests
+runtime\venv\Scripts\python.exe -m pytest
+```
+
+The tests need no model, GPU or network: they run Sparky on throw-away folders, with scripted models and fake cloud providers (`tests/mocks.py`). GitHub Actions runs them on Windows (Python 3.10 and 3.13) and Linux, and checks that the PowerShell scripts parse in Windows PowerShell 5.1.
 
 ## En français
 
@@ -209,6 +230,8 @@ app/
   attach.py     attached files -> text (PDF, Office, code, audio/video transcription)
   localscan.py  finds the models already on the PC (LM Studio, Ollama, Hugging Face...)
   updater.py    version check and one-click update (git pull)
+  cloud.py      optional cloud providers (OpenRouter, Claude, OpenAI-compatible...)
+  checker.py    automatic project tests (headless browser, Python, Node.js)
   stt.py        offline voice dictation (Whisper)
   companion.py  Sparky Bot: persona, learning, reflection, journal (beta)
   memory.py     Sparky Bot memory: SQLite store + hybrid semantic retrieval
@@ -216,6 +239,7 @@ app/
 install.ps1     step-by-step installer
 VERSION         current version
 requirements.txt  Sparky's own Python packages
+tests/          regression tests (pytest), run by .github/workflows/ci.yml
 start.ps1 / stop.ps1
 docs/           screenshots and demos
 ```

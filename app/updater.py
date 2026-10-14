@@ -12,9 +12,10 @@ import config
 REPO = "anisayari/sparky"
 REMOTE_VERSION = os.environ.get("SPARKY_VERSION_URL") or f"https://raw.githubusercontent.com/{REPO}/main/VERSION"
 INSTALL_CMD = f"irm https://raw.githubusercontent.com/{REPO}/main/install.ps1 | iex"
-NOWIN = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+NOWIN = config.NOWIN
 CHECK_EVERY = 3600
 
+_lock = threading.Lock()
 state = {"latest": None, "checked": 0.0, "error": "", "updating": False, "log": ""}
 
 
@@ -106,17 +107,25 @@ def update():
         return False, "installation sans git : relance la commande d'installation"
     if s["changes"]:
         return False, "modifications locales : " + ", ".join(s["changes"][:8])
-    state.update(updating=True, log="")
-    code, out = _git("pull", "--ff-only", timeout=180)
-    out = out.strip()
-    state["log"] = out[-1500:]
-    if code != 0:
+    with _lock:  # one update at a time (two tabs, two clicks)
+        if state["updating"]:
+            return False, "mise à jour déjà en cours"
+        state.update(updating=True, log="")
+    try:
+        code, out = _git("pull", "--ff-only", timeout=180)
+        out = out.strip()
+        state["log"] = out[-1500:]
+        if code != 0:
+            return False, "git pull a échoué : " + out[-400:]
+        # new Python packages, if any (quick when nothing changed); a failure must not restart into broken code
+        req = os.path.join(config.ROOT, "requirements.txt")
+        if os.path.exists(req):
+            r = subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", req], creationflags=NOWIN, timeout=900,
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if r.returncode:
+                return False, "installation des dépendances impossible : " + (r.stderr or r.stdout)[-400:]
+    finally:
         state["updating"] = False
-        return False, "git pull a échoué : " + out[-400:]
-    # new Python packages, if any (quick when nothing changed)
-    req = os.path.join(config.ROOT, "requirements.txt")
-    if os.path.exists(req):
-        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", req], creationflags=NOWIN, timeout=900)
     threading.Thread(target=_restart, daemon=True).start()
     return True, out[-400:]
 

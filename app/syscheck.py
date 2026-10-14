@@ -8,7 +8,7 @@ import json, os, platform, shutil, subprocess, sys, time
 import config
 
 FILE = os.path.join(config.DATA, "syscheck.json")
-NOWIN = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+NOWIN = config.NOWIN
 
 # effective memory bandwidth (GB/s) of common GPUs: this is what sets an LLM's speed
 BANDWIDTH = [("5090", 1500), ("5080", 800), ("5070 ti", 750), ("5070", 560), ("5060 ti", 370), ("5060", 370),
@@ -113,8 +113,7 @@ def run():
     hw = detect()
     info = {"ts": time.time(), "hw": hw, "assess": assess(hw)}
     info["recommended"], info["notes"] = recommend(info)
-    os.makedirs(config.DATA, exist_ok=True)
-    json.dump(info, open(FILE, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+    config.write_json(FILE, info)
     _cache["v"] = info
     return info
 
@@ -125,9 +124,8 @@ _cache = {"v": None}
 def current():
     """Last scan (without rerunning), or a fresh scan if there has never been one."""
     if _cache["v"] is None:
-        if os.path.exists(FILE):
-            _cache["v"] = json.load(open(FILE, encoding="utf-8"))
-        else:
+        _cache["v"] = config.read_json(FILE)
+        if not isinstance(_cache["v"], dict) or "recommended" not in _cache["v"]:
             return run()
     return _cache["v"]
 

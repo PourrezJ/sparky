@@ -39,9 +39,9 @@ def kind_of(name, mime=""):
 
 
 def _decode_text(data):
-    for enc in ("utf-8-sig", "utf-16") if data[:2] in (b"\xff\xfe", b"\xfe\xff") else ("utf-8-sig", "cp1252", "latin-1"):
+    for enc in ("utf-16",) if data[:2] in (b"\xff\xfe", b"\xfe\xff") else ("utf-8-sig", "cp1252", "latin-1"):
         try:
-            return data.decode(enc)
+            return data.decode(enc).lstrip("﻿")
         except UnicodeDecodeError:
             continue
     return data.decode("utf-8", errors="replace")
@@ -89,7 +89,7 @@ def _pdf(data):
     try:
         from pypdf import PdfReader
     except ImportError:
-        raise RuntimeError("lecture des PDF indisponible (relance l'installation)")
+        raise RuntimeError("lecture des PDF indisponible (relance l'installation)") from None
     r = PdfReader(io.BytesIO(data))
     pages = []
     for i, p in enumerate(r.pages):

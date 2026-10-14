@@ -1,0 +1,15 @@
+[tool.ruff]
+line-length = 140
+target-version = "py310"
+
+[tool.ruff.lint]
+# pyflakes, syntax errors, bugbear (likely bugs), pylint errors
+select = ["F", "E9", "B", "PLE"]
+ignore = [
+  "B905",  # zip() without strict=: the lists are built together
+  "E741",  # short names like l in comprehensions are fine here
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -p no:cacheprovider"

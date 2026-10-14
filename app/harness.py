@@ -4,7 +4,7 @@ At each step the model answers with a JSON action (generate / edit / reply). Aft
 generation it receives the produced image (and the references used) to check it and
 fix it itself if needed, up to MAX_STEPS steps per message.
 """
-import base64, io, json, os, random, re, threading, time, urllib.error, urllib.request, uuid
+import base64, contextlib, io, json, os, random, re, threading, time, urllib.error, urllib.request, uuid
 
 from PIL import Image, ImageDraw
 
@@ -24,15 +24,21 @@ THINK = {"off": (None, 0), "low": ("low", 1024), "medium": ("medium", 4096), "hi
 ACTIVITY = {"llm": 0, "image": 0}  # number of requests in progress (for the UI monitor)
 
 
+_activity_lock = threading.Lock()
+
+
 class busy:
+    """Counts a request in progress for the UI monitor (several threads at once)."""
     def __init__(self, what):
         self.what = what
 
     def __enter__(self):
-        ACTIVITY[self.what] += 1
+        with _activity_lock:
+            ACTIVITY[self.what] += 1
 
     def __exit__(self, *a):
-        ACTIVITY[self.what] -= 1
+        with _activity_lock:
+            ACTIVITY[self.what] -= 1
 
 
 SETTINGS_FILE = os.path.join(DATA, "settings.json")
@@ -41,13 +47,11 @@ SETTINGS = {"llm": None, "ckpt": None, "steps": 30, "cfg": 5.5, "max_steps": 6, 
 
 
 def load_settings():
-    if os.path.exists(SETTINGS_FILE):
-        SETTINGS.update(json.load(open(SETTINGS_FILE, encoding="utf-8")))
+    SETTINGS.update(config.read_json(SETTINGS_FILE, {}) or {})
 
 
 def save_settings():
-    os.makedirs(DATA, exist_ok=True)
-    json.dump(SETTINGS, open(SETTINGS_FILE, "w", encoding="utf-8"), indent=1)
+    config.write_json(SETTINGS_FILE, dict(SETTINGS))  # a copy: other threads keep updating SETTINGS
 
 
 RECENT_IMAGES = 10  # beyond this, the oldest images are turned into text (in batches of 6)
@@ -94,7 +98,52 @@ def http_json(url, payload=None, timeout=900):
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
-        raise RuntimeError(f"{url} -> {e.code} : {e.read().decode(errors='replace')[:600]}")
+        raise RuntimeError(f"{url} -> {e.code} : {e.read().decode(errors='replace')[:600]}") from None
+
+
+def cloud_model():
+    """Catalog entry of the active assistant when it is a cloud model (OpenRouter, Claude...), else None."""
+    import catalog
+    m = catalog.BY_ID.get(SETTINGS.get("llm"))
+    return m if m and m.get("cloud") else None
+
+
+def llama_deltas(body):
+    """Streams llama-server's answer: yields (text, reasoning) pieces."""
+    req = urllib.request.Request(LLM + "/v1/chat/completions", json.dumps(body | {"stream": True}).encode(),
+                                 {"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=900) as r:
+        for raw in r:
+            line = raw.decode("utf-8", "replace").strip()
+            if not line.startswith("data: ") or line == "data: [DONE]":
+                continue
+            try:
+                chunk = json.loads(line[6:])
+                if chunk.get("timings", {}).get("predicted_per_second"):
+                    record_speed(SETTINGS["llm"], chunk["timings"]["predicted_per_second"])
+                delta = chunk["choices"][0]["delta"]
+            except (ValueError, KeyError, IndexError):
+                continue
+            yield delta.get("content") or "", delta.get("reasoning_content") or ""
+
+
+def chat_deltas(body, think="off"):
+    """Streams the active assistant, local or cloud (body in the OpenAI chat format)."""
+    m = cloud_model()
+    if m:
+        import cloud
+        return cloud.stream(m, body["messages"], body.get("max_tokens", 8000), think,
+                            json_mode=bool(body.get("response_format")))
+    return llama_deltas(body)
+
+
+def chat_once(body):
+    """One complete answer from the active assistant, local or cloud."""
+    m = cloud_model()
+    if m:
+        import cloud
+        return cloud.complete(m, body["messages"], body.get("max_tokens", 900), json_mode=bool(body.get("response_format")))
+    return http_json(LLM + "/v1/chat/completions", body)["choices"][0]["message"]["content"] or ""
 
 
 def fit_1mp(im):
@@ -344,6 +393,16 @@ def check_content(path, content):
                            "contenu COMPLET et fonctionnel (vrai code, pas de note ni de « ... »).")
 
 
+def slug(s):
+    """Project / artifact id: lowercase letters, digits and dashes."""
+    return re.sub(r"[^a-z0-9-]+", "-", str(s or "").lower()).strip("-")[:40]
+
+
+def image_id(x):
+    """'#3', 3 or '3' -> 3 (ValueError otherwise)."""
+    return int(str(x).lstrip("#"))
+
+
 def clean_path(p):
     """Relative path inside a project (no drive, no '..', forward slashes)."""
     parts = [x for x in re.split(r"[\\/]+", str(p or "").strip()) if x not in ("", ".", "..") and ":" not in x]
@@ -412,7 +471,6 @@ LANG_SETS = {k: set(v.split()) for k, v in LANG_WORDS.items()}
 def detect_lang(text, weak=False):
     """Message language (frequent-word heuristic). None if too short/ambiguous ('ok', 'cool', 'lol').
     weak=True accepts a single clue (useful at the start of a conversation, when no language is known yet)."""
-    import re
     words = re.findall(r"[a-zà-ÿ']+", (text or "").lower())
     if len(words) < (1 if weak else 2):
         return None
@@ -587,7 +645,7 @@ class Session:
 
     def project_asset(self, a, image_id):
         """A generated image becomes a file of the project (served to the preview, written to disk, zipped)."""
-        pid = re.sub(r"[^a-z0-9-]+", "-", str(a.get("project")).lower()).strip("-")[:40] or "projet"
+        pid = slug(a.get("project")) or "projet"
         p = self.projects.setdefault(pid, {"title": pid.replace("-", " ").strip().capitalize() or pid, "auto": True,
                                            "entry": None, "files": {}, "version": 0})
         path = clean_path(a.get("path"))
@@ -613,7 +671,7 @@ class Session:
                 continue
             self._emit({"type": "status", "text": f"teste le projet « {p['title']} »"})
             try:
-                r = checker.check(self, pid, p, config.APP_PORT)
+                r = checker.check(self, pid, p, config.PREVIEW_PORT)
             except Exception as e:
                 r = {"ok": True, "kind": "?", "report": "", "output": f"(test impossible : {e})", "code": None, "secs": 0}
             ev({"type": "test", "project": pid, "title": p["title"], "round": round_no, "ok": r["ok"], "kind": r["kind"],
@@ -632,7 +690,7 @@ class Session:
         if not content.strip():
             raise RuntimeError(f"fichier « {path} » sans contenu : mets le fichier COMPLET dans \"content\"")
         check_content(path, content)
-        pid = re.sub(r"[^a-z0-9-]+", "-", str(a.get("project") or a.get("id") or a.get("title") or "projet").lower()).strip("-")[:40] or "projet"
+        pid = slug(a.get("project") or a.get("id") or a.get("title") or "projet") or "projet"
         p = self.projects.setdefault(pid, {"title": a.get("title") or pid, "entry": None, "files": {}, "version": 0})
         title = str(a.get("title") or "")
         if re.search(r"\.\w{1,5}$", p["title"]):
@@ -678,7 +736,7 @@ class Session:
         if not content.strip():
             raise RuntimeError("artifact vide : envoie le contenu complet dans args.content")
         check_content(a.get("path") or a.get("language") or "", content)
-        aid = re.sub(r"[^a-z0-9-]+", "-", str(a.get("id") or a.get("title") or "artifact").lower()).strip("-")[:40] or "artifact"
+        aid = slug(a.get("id") or a.get("title") or "artifact") or "artifact"
         kind = a.get("kind") if a.get("kind") in ("html", "code", "markdown", "svg") else "code"
         art = self.artifacts.setdefault(aid, {"title": a.get("title") or aid, "kind": kind,
                                               "language": a.get("language") or kind, "versions": []})
@@ -739,26 +797,14 @@ class Session:
                 "stream": True, "response_format": {"type": "json_object"}, "chat_template_kwargs": kw}
         if dry:  # llama.cpp anti-repetition, only after a loop (it can hurt legitimately repetitive code)
             body |= {"dry_multiplier": 0.8, "dry_base": 1.75, "dry_allowed_length": 6, "temperature": 0.7}
-        req = urllib.request.Request(LLM + "/v1/chat/completions", json.dumps(body).encode(),
-                                     {"Content-Type": "application/json"})
         t, rs, last, t0, t_rs, chk, looped = "", "", 0.0, time.time(), None, 0, False
         js = {"pos": 0, "depth": 0, "str": False, "esc": False, "done": False}
-        with busy("llm"), urllib.request.urlopen(req, timeout=900) as r:
-            for raw in r:
-                line = raw.decode("utf-8", "replace").strip()
-                if not line.startswith("data: ") or line == "data: [DONE]":
-                    continue
-                try:
-                    chunk = json.loads(line[6:])
-                    if chunk.get("timings", {}).get("predicted_per_second"):
-                        record_speed(SETTINGS["llm"], chunk["timings"]["predicted_per_second"])
-                    delta = chunk["choices"][0]["delta"]
-                    t += delta.get("content") or ""
-                    rs += delta.get("reasoning_content") or ""
-                    if t and t_rs is None:  # end of thinking = start of the answer
-                        t_rs = time.time() - t0
-                except (ValueError, KeyError, IndexError):
-                    continue
+        with busy("llm"), contextlib.closing(chat_deltas(body, think)) as deltas:
+            for piece, reasoning in deltas:
+                t += piece
+                rs += reasoning
+                if t and t_rs is None:  # end of thinking = start of the answer
+                    t_rs = time.time() - t0
                 if not self._read:
                     self._read = True
                     self._emit({"type": "read"})
@@ -832,7 +878,7 @@ class Session:
                 "temperature": 0.2, "max_tokens": 900, "chat_template_kwargs": {"enable_thinking": False}}
         try:
             with busy("llm"):
-                out = http_json(LLM + "/v1/chat/completions", body)["choices"][0]["message"]["content"].strip()
+                out = chat_once(body).strip()
             return re.sub(r"<think>.*?</think>", "", out, flags=re.S).strip() or text
         except Exception:
             return text
@@ -851,7 +897,7 @@ class Session:
                     "temperature": 0, "max_tokens": 120, "chat_template_kwargs": {"enable_thinking": False}}
             try:
                 with busy("llm"):
-                    t = http_json(LLM + "/v1/chat/completions", body)["choices"][0]["message"]["content"]
+                    t = chat_once(body)
                 box = json.loads(re.search(r"\{.*\}", t, re.S).group(0)).get("box")
                 ok = isinstance(box, list) and len(box) == 4 and all(isinstance(v, (int, float)) for v in box)
                 self.boxes[key] = box if ok else None
@@ -864,7 +910,7 @@ class Session:
         out, crops = [], []
         for r in (refs or [])[:4]:
             try:
-                iid = int(str(r.get("image")).lstrip("#"))
+                iid = image_id(r.get("image"))
             except (TypeError, ValueError):
                 continue
             if iid not in self.images:
@@ -888,7 +934,7 @@ class Session:
         out = []
         for r in refs or []:
             try:
-                iid = int(str(r.get("image")).lstrip("#"))
+                iid = image_id(r.get("image"))
             except (TypeError, ValueError):
                 continue
             if iid in self.images and iid not in exclude and iid not in out:
@@ -973,7 +1019,7 @@ class Session:
 
     def tool_edit(self, a):
         try:
-            iid = int(str(a.get("image")).lstrip("#"))
+            iid = image_id(a.get("image"))
         except (TypeError, ValueError):
             iid = self.last_image()
         if iid not in self.images:
@@ -1020,6 +1066,212 @@ class Session:
         return new, crops
 
     # -- one conversation turn
+    def _note(self, text, images=()):
+        """Message from Sparky to the model in the history (results, errors, reminders)."""
+        self.history.append({"role": "user", "images": list(images), "text": text})
+
+    def _start_turn(self, text, uploads, mask, mask_for, files, ev):
+        self.lang = (detect_lang(text) or self.lang or detect_lang(text, weak=True)
+                     or ("French" if SETTINGS.get("ui_lang") == "fr" else "English"))
+        ids = [self.add_image(im, "user") for im in uploads]
+        note = ""
+        if mask is not None and mask_for in self.images:
+            p = os.path.join(self.dir, f"mask_{mask_for}_{len(self.masks)}.png")
+            mask.save(p)
+            self.masks[mask_for] = p
+            note += f"\n[L'utilisateur a peint une zone sur l'image #{mask_for} : pour la modifier, edit avec region \"mask\".]"
+        if ids:
+            note += "\n[Images jointes : " + ", ".join(f"#{i}" for i in ids) + "]"
+        budget = 60000  # attached files (text, PDF, Office, audio transcripts): context shared by all of them
+        for f in files:
+            body = f["text"][:max(0, budget)]
+            budget -= len(body)
+            cut = f["truncated"] or len(body) < len(f["text"])
+            note += (f"\n[Fichier joint : {f['name']}" + (" (extrait : fichier trop long)" if cut else "")
+                     + "]\n<<<\n" + body + "\n>>>")
+        self.history.append({"role": "user", "text": (text or ("(fichiers)" if files else "(images)")) + note, "images": ids})
+        ev({"type": "user", "text": text, "images": ids, "maskFor": mask_for if mask is not None else None,
+            "files": [{"name": f["name"], "kind": f["kind"], "size": f["size"]} for f in files]})
+
+    def _next_action(self, ev):
+        """Next action of the model (or of a packed answer), normalized and recorded."""
+        act = self._pending.pop(0) if self._pending else self.ask_llm()
+        if not isinstance(act, dict):
+            act = {"action": "reply", "args": {"text": str(act)}}
+        if not isinstance(act.get("args"), dict):  # models sometimes send args/notes as plain text
+            act["args"] = {"text": act["args"]} if isinstance(act.get("args"), str) else {}
+        if not isinstance(act.get("notes"), dict):
+            act.pop("notes", None)
+        self.history.append({"role": "assistant", "text": json.dumps(act, ensure_ascii=False)})
+        for k, v in (act.get("notes") or {}).items():  # the model's descriptions of the images
+            try:
+                if image_id(k) in self.images:
+                    self.images[image_id(k)]["desc"] = str(v)
+            except ValueError:
+                pass
+        if act.get("thought"):
+            ev({"type": "thought", "text": act["thought"]})
+        return act
+
+    def _route_pathless(self, t, args):
+        """A file without path: either a project file whose path was forgotten, or a single-file
+        artifact written while a project is being built (it belongs to that project)."""
+        aid = str(args.get("id") or "").lower()
+        target = slug(args.get("project")) or next((p for p in self.projects if aid.startswith(p)), None) or \
+            (t.last_pid if t.touched else None)
+        return args | {"project": target, "path": self.guess_path(target, args)} if target else args
+
+    def _on_project_file(self, t, args, ev):
+        try:
+            pid, p, path = self.tool_project_file(args)
+        except Exception as e:  # incomplete file: the model gets the reason and rewrites it
+            self._emit({"type": "status", "text": "fichier incomplet, nouvel essai"})
+            return self._note(f"[ERREUR PROJET] {e}")
+        t.tools_used = True
+        t.touched.add(pid)
+        t.last_pid = pid
+        t.spare()
+        t.dirty.add(pid)
+        ev({"type": "project", "id": pid, "title": p["title"], "path": path, "content": p["files"][path],
+            "entry": p["entry"], "version": p["version"]})
+        if t.test_rounds and SETTINGS.get("autotest", True):  # fixing: re-test right after each fix (~5 s)
+            return self._retest(t, pid, ev)
+        self._note(f"[PROJET] « {p['title']} » (project {pid}) : {path} enregistré. Fichiers : {', '.join(p['files'])} "
+                   f"(entry {p['entry']}). S'il manque des fichiers référencés (CSS, JS, modules…), envoie le suivant avec "
+                   "le même project. Sinon termine par une courte reply (sans recopier le code).")
+
+    def _retest(self, t, pid, ev):
+        failed = self.test_projects({pid}, ev, t.test_rounds + 1)
+        if not failed:
+            t.dirty.discard(pid)
+            return self._note("[TEST AUTOMATIQUE] Corrigé : le projet fonctionne maintenant. Réponds à l'utilisateur.")
+        t.test_rounds += 1
+        if t.test_rounds > MAX_FIX_ROUNDS:
+            t.dirty.discard(pid)
+            return self._note("[TEST AUTOMATIQUE] Toujours en erreur. Arrête les corrections et réponds honnêtement à "
+                              "l'utilisateur (ce qui marche, l'erreur restante).")
+        self._note(f"[TEST AUTOMATIQUE] Re-testé après ta correction : toujours une erreur.\n{failed[0][1]['report']}\n"
+                   "Corrige le fichier concerné (contenu COMPLET).")
+
+    def _on_artifact(self, t, args, ev):
+        try:
+            aid, art = self.tool_artifact(args)
+        except Exception as e:
+            ev({"type": "error", "text": str(e)})
+            return self._note(f"[ERREUR ARTIFACT] {e}")
+        t.tools_used, n = True, len(art["versions"])
+        t.spare()
+        ev({"type": "artifact", "id": aid, "title": art["title"], "kind": art["kind"],
+            "language": art["language"], "version": n, "content": art["versions"][-1]})
+        # the history keeps a simple mention: the up-to-date content is given at the end of the context
+        self._note(f"[ARTIFACT] \"{art['title']}\" (id {aid}) v{n} est affiché à l'utilisateur dans le panneau à droite. "
+                   "Termine maintenant par une courte reply (sans recopier le code).")
+
+    def _reply_nudge(self, t, text):
+        """Why this reply cannot be sent yet (empty, announces an action not done, missing files, repeated)."""
+        if not text:  # empty reply or malformed JSON
+            return "[FORMAT] Your last answer was empty or malformed. Do what the user asked now: generate/edit, or reply with args.text."
+        if t.step < t.max_steps and not t.tools_used and ANNOUNCE.search(text):
+            return ("[ACTION] You announced an action without doing it. Do it NOW with generate or edit "
+                    "(do not describe it), or ask one precise question if something is truly unclear.")
+        if t.step < t.max_steps and (miss := self.missing_files(t.touched)):
+            return (f"[PROJET] Ces fichiers sont utilisés mais n'existent pas encore : {', '.join(miss)}. "
+                    "Envoie-les maintenant (même project, contenu complet), puis termine par une reply.")
+        if text.strip() in t.past_replies:
+            return "[REPEAT] This exact reply was already sent earlier. Write a new reply that describes THIS result honestly."
+        return None
+
+    def _on_reply(self, t, act, args, ev):
+        """Returns True once the reply is sent (end of the turn)."""
+        text = args.get("text") or act.get("text") or act.get("reply")
+        nudge = self._reply_nudge(t, text)
+        if nudge and t.nudges < 2:
+            t.nudges += 1
+            self._note(nudge)
+            return False
+        warn = ""
+        if t.dirty and SETTINGS.get("autotest", True):  # the project is "done": build / run it before answering
+            failed = self.test_projects(t.dirty, ev, t.test_rounds + 1)
+            if failed and t.test_rounds < MAX_FIX_ROUNDS:
+                t.test_rounds += 1
+                t.free += 1
+                self._note("[TEST AUTOMATIQUE] " + "\n\n".join(
+                    f"Le projet « {self.projects[p]['title']} » (project {p}) a été exécuté et ne fonctionne pas encore :\n{r['report']}"
+                    for p, r in failed) + "\n\nCorrige la cause : renvoie les fichiers concernés COMPLETS (même project, même path). "
+                    "Le projet sera re-testé automatiquement ; ne réponds pas à l'utilisateur avant que ce soit corrigé.")
+                return False
+            if failed:
+                warn = (f"\n\n⚠️ Les tests automatiques échouent encore après {MAX_FIX_ROUNDS} corrections : regarde la Console du projet."
+                        if self.lang == "French" else
+                        f"\n\n⚠️ The automatic tests still fail after {MAX_FIX_ROUNDS} fixes: see the project's Console.")
+            t.dirty.clear()
+        text = self.fix_language(text or act.get("thought") or "...") + warn
+        if "```" in text:
+            short = self.auto_artifacts(text, ev)
+            if short != text:  # the code lives in the artifact: the history keeps no copy of it
+                self.history[-1]["text"] = json.dumps(act | {"args": {"text": short + " [code dans l'artifact, voir ARTIFACTS]"}},
+                                                      ensure_ascii=False)
+                text = short
+        ev({"type": "reply", "text": text})
+        return True
+
+    def _on_image_tool(self, t, name, args, ev):
+        sig = json.dumps([name, args], sort_keys=True)
+        if sig == t.last_sig:
+            return self._note("[REFUSED] Identical arguments to the previous attempt. Change something concrete, or reply.")
+        t.last_sig = sig
+        if name == "generate" and args.get("project") and args.get("path"):
+            made = self.projects.get(slug(args["project"]), {}).get("assets", {})
+            want = clean_path(args["path"])
+            if want in made or want + ".png" in made:  # already generated for this project: no duplicate
+                t.spare()
+                return self._note(f"[DEJA FAIT] L'image « {want} » existe déjà dans le projet : ne la régénère pas. "
+                                  "Continue avec les fichiers ou images qui manquent, ou réponds.")
+        ev({"type": "tool", "name": name, "args": args})
+        try:
+            t.tools_used = True
+            new, crops = (self.tool_generate if name == "generate" else self.tool_edit)(args)
+            ev({"type": "image", "id": new, "refs": crops})
+            saved = ""
+            if args.get("project") and args.get("path"):  # image made for a project (website illustration...)
+                pid, p, path = self.project_asset(args, new)
+                t.touched.add(pid)
+                t.last_pid = pid
+                t.dirty.add(pid)
+                t.spare()
+                ev({"type": "project", "id": pid, "title": p["title"], "path": path, "asset": new,
+                    "entry": p["entry"], "version": p["version"]})
+                saved = f" Elle est enregistrée dans le projet {pid} sous « {path} » : utilise exactement ce chemin relatif dans le HTML/CSS."
+            left = t.max_steps - t.step - 1
+            parent = self.images[new].get("parent")
+            local = name == "edit" and isinstance(args.get("region"), list)
+            obs = (f"[RESULTAT] {name} a produit l'image #{new} (ci-dessous)"
+                   + (f", avec les decoupes de reference {', '.join('#%d' % c for c in crops)}" if crops else "")
+                   + f". Verifie-la par rapport a la demande{' et aux references' if crops else ''}. "
+                   + (f"Compare la zone modifiee avec l'original #{parent} : dans \"thought\", liste ce qui se trouve "
+                      f"MAINTENANT a cet endroit. Un objet qui n'y etait pas (ou qui a juste change de forme) = echec. "
+                      if local and parent else "")
+                   + saved + " Si c'est bon : continue (autres fichiers ou images du projet) ou reply. "
+                   f"Sinon corrige et relance ({left} etape(s) restante(s)).")
+            self._note(obs, [new] + crops)
+        except Exception as e:
+            ev({"type": "error", "text": str(e)})
+            self._note(f"[ERREUR OUTIL] {e}. Corrige les arguments ou explique le probleme a l'utilisateur.")
+
+    def _give_up(self, t, ev):
+        """Out of attempts: never end a turn in silence, say honestly where things stand."""
+        fr = self.lang == "French"
+        done = [f"« {self.projects[p]['title']} » ({len(self.projects[p]['files'])} fichiers)" if fr else
+                f"\"{self.projects[p]['title']}\" ({len(self.projects[p]['files'])} files)" for p in t.touched]
+        miss = self.missing_files(t.touched)
+        text = (("Je n'ai pas réussi à tout terminer dans le nombre d'étapes prévu. " if fr else
+                 "I could not finish everything within the allowed number of steps. ")
+                + ((("Ce qui est prêt : " if fr else "What is ready: ") + ", ".join(done) + ". ") if done else "")
+                + ((("Il manque encore : " if fr else "Still missing: ") + ", ".join(miss) + ". ") if miss else "")
+                + ("Dis-moi « continue » pour que je reprenne." if fr else "Say \"continue\" and I will pick up from there."))
+        self.history.append({"role": "assistant", "text": json.dumps({"action": "reply", "args": {"text": text}}, ensure_ascii=False)})
+        ev({"type": "reply", "text": text})
+
     def turn(self, text, uploads, mask, mask_for, emit, files=()):
         def ev(e):
             e.setdefault("ts", time.time())
@@ -1028,216 +1280,51 @@ class Session:
 
         with self.lock:
             self._emit, self._ev, self._read = emit, ev, False
-            self.lang = (detect_lang(text) or self.lang or detect_lang(text, weak=True)
-                         or ("French" if SETTINGS.get("ui_lang") == "fr" else "English"))
-            ids = [self.add_image(im, "user") for im in uploads]
-            note = ""
-            if mask is not None and mask_for in self.images:
-                p = os.path.join(self.dir, f"mask_{mask_for}_{len(self.masks)}.png")
-                mask.save(p)
-                self.masks[mask_for] = p
-                note += f"\n[L'utilisateur a peint une zone sur l'image #{mask_for} : pour la modifier, edit avec region \"mask\".]"
-            if ids:
-                note += "\n[Images jointes : " + ", ".join(f"#{i}" for i in ids) + "]"
-            budget = 60000  # attached files (text, PDF, Office, audio transcripts): context shared by all of them
-            for f in files:
-                body = f["text"][:max(0, budget)]
-                budget -= len(body)
-                cut = f["truncated"] or len(body) < len(f["text"])
-                note += (f"\n[Fichier joint : {f['name']}" + (" (extrait : fichier trop long)" if cut else "")
-                         + "]\n<<<\n" + body + "\n>>>")
-            self.history.append({"role": "user", "text": (text or ("(fichiers)" if files else "(images)")) + note, "images": ids})
-            ev({"type": "user", "text": text, "images": ids, "maskFor": mask_for if mask is not None else None,
-                "files": [{"name": f["name"], "kind": f["kind"], "size": f["size"]} for f in files]})
+            self._start_turn(text, uploads, mask, mask_for, files, ev)
             try:
-                max_steps, last_sig, nudges, tools_used = int(SETTINGS["max_steps"]), None, 0, False
-                past_replies = {e["text"].strip() for e in self.events if e.get("type") == "reply"}
-                # free: writing files, project images and test rounds do not use up the agent's attempts
-                self._pending, free, touched, dirty, test_rounds, last_pid = [], 0, set(), set(), 0, None
-                replied = False
-                for it in range(max_steps + 1 + 60):
-                    step = it - free
-                    if step > max_steps:
+                t = _Turn(int(SETTINGS["max_steps"]), {e["text"].strip() for e in self.events if e.get("type") == "reply"})
+                self._pending = []
+                for it in range(t.max_steps + 1 + 60):
+                    t.step = it - t.free
+                    if t.step > t.max_steps:
                         break
-                    if step == max_steps:
-                        self.history.append({"role": "user", "text": "[Plus d'etape disponible : reponds maintenant avec action reply.]", "images": []})
-                    act = self._pending.pop(0) if self._pending else self.ask_llm()
-                    if not isinstance(act, dict):
-                        act = {"action": "reply", "args": {"text": str(act)}}
-                    if not isinstance(act.get("args"), dict):  # models sometimes send args/notes as plain text
-                        act["args"] = {"text": act["args"]} if isinstance(act.get("args"), str) else {}
-                    if not isinstance(act.get("notes"), dict):
-                        act.pop("notes", None)
-                    self.history.append({"role": "assistant", "text": json.dumps(act, ensure_ascii=False)})
-                    for k, v in (act.get("notes") or {}).items():
-                        try:
-                            if int(str(k).lstrip("#")) in self.images:
-                                self.images[int(str(k).lstrip("#"))]["desc"] = str(v)
-                        except ValueError:
-                            pass
+                    if t.step == t.max_steps:
+                        self._note("[Plus d'etape disponible : reponds maintenant avec action reply.]")
+                    act = self._next_action(ev)
                     name, args = act.get("action"), act.get("args") or {}
-                    if act.get("thought"):
-                        ev({"type": "thought", "text": act["thought"]})
                     if name == "artifact" and not args.get("path"):
-                        # a file without path: either a project file whose path was forgotten, or a single-file
-                        # artifact written while a project is being built (it belongs to that project)
-                        aid = str(args.get("id") or "").lower()
-                        named = re.sub(r"[^a-z0-9-]+", "-", str(args.get("project") or "").lower()).strip("-")[:40]
-                        target = named or next((p for p in self.projects if aid.startswith(p)), None) or (last_pid if touched else None)
-                        if target:
-                            args = args | {"project": target, "path": self.guess_path(target, args)}
-                    if name == "artifact" and (args.get("path") or args.get("project")) and step < max_steps:
-                        try:
-                            pid, p, path = self.tool_project_file(args)
-                            tools_used = True
-                            touched.add(pid)
-                            last_pid = pid
-                            free += 1 if free < 60 else 0
-                            dirty.add(pid)
-                            ev({"type": "project", "id": pid, "title": p["title"], "path": path, "content": p["files"][path],
-                                "entry": p["entry"], "version": p["version"]})
-                            if test_rounds and SETTINGS.get("autotest", True):  # fixing: re-test right after each fix (~5 s)
-                                failed = self.test_projects({pid}, ev, test_rounds + 1)
-                                if not failed:
-                                    dirty.discard(pid)
-                                    self.history.append({"role": "user", "images": [], "text":
-                                        "[TEST AUTOMATIQUE] Corrigé : le projet fonctionne maintenant. Réponds à l'utilisateur."})
-                                    continue
-                                test_rounds += 1
-                                if test_rounds > MAX_FIX_ROUNDS:
-                                    dirty.discard(pid)
-                                    self.history.append({"role": "user", "images": [], "text":
-                                        "[TEST AUTOMATIQUE] Toujours en erreur. Arrête les corrections et réponds honnêtement à "
-                                        "l'utilisateur (ce qui marche, l'erreur restante)."})
-                                    continue
-                                self.history.append({"role": "user", "images": [], "text":
-                                    f"[TEST AUTOMATIQUE] Re-testé après ta correction : toujours une erreur.\n{failed[0][1]['report']}\n"
-                                    "Corrige le fichier concerné (contenu COMPLET)."})
-                                continue
-                            self.history.append({"role": "user", "images": [], "text":
-                                f"[PROJET] « {p['title']} » (project {pid}) : {path} enregistré. Fichiers : {', '.join(p['files'])} "
-                                f"(entry {p['entry']}). S'il manque des fichiers référencés (CSS, JS, modules…), envoie le suivant avec "
-                                "le même project. Sinon termine par une courte reply (sans recopier le code)."})
-                        except Exception as e:  # incomplete file: the model gets the reason and rewrites it
-                            self._emit({"type": "status", "text": "fichier incomplet, nouvel essai"})
-                            self.history.append({"role": "user", "images": [], "text": f"[ERREUR PROJET] {e}"})
-                        continue
-                    if name == "artifact" and step < max_steps:
-                        try:
-                            aid, art = self.tool_artifact(args)
-                            tools_used, n = True, len(art["versions"])
-                            free += 1 if free < 60 else 0
-                            ev({"type": "artifact", "id": aid, "title": art["title"], "kind": art["kind"],
-                                "language": art["language"], "version": n, "content": art["versions"][-1]})
-                            # the history keeps a simple mention: the up-to-date content is given at the end of the context
-                            self.history.append({"role": "user", "images": [], "text":
-                                f"[ARTIFACT] \"{art['title']}\" (id {aid}) v{n} est affiché à l'utilisateur dans le panneau à droite. "
-                                "Termine maintenant par une courte reply (sans recopier le code)."})
-                        except Exception as e:
-                            ev({"type": "error", "text": str(e)})
-                            self.history.append({"role": "user", "images": [], "text": f"[ERREUR ARTIFACT] {e}"})
-                        continue
-                    if name not in ("generate", "edit") or step == max_steps:
-                        text = args.get("text") or act.get("text") or act.get("reply")
-                        nudge = None
-                        if not text:  # empty reply or malformed JSON
-                            nudge = "[FORMAT] Your last answer was empty or malformed. Do what the user asked now: generate/edit, or reply with args.text."
-                        elif step < max_steps and not tools_used and ANNOUNCE.search(text):
-                            nudge = ("[ACTION] You announced an action without doing it. Do it NOW with generate or edit "
-                                     "(do not describe it), or ask one precise question if something is truly unclear.")
-                        elif step < max_steps and (miss := self.missing_files(touched)):
-                            nudge = (f"[PROJET] Ces fichiers sont utilisés mais n'existent pas encore : {', '.join(miss)}. "
-                                     "Envoie-les maintenant (même project, contenu complet), puis termine par une reply.")
-                        elif text.strip() in past_replies:
-                            nudge = "[REPEAT] This exact reply was already sent earlier. Write a new reply that describes THIS result honestly."
-                        if nudge and nudges < 2:
-                            nudges += 1
-                            self.history.append({"role": "user", "images": [], "text": nudge})
-                            continue
-                        warn = ""
-                        if dirty and SETTINGS.get("autotest", True):  # the project is "done": build / run it before answering
-                            failed = self.test_projects(dirty, ev, test_rounds + 1)
-                            if failed and test_rounds < MAX_FIX_ROUNDS:
-                                test_rounds += 1
-                                free += 1
-                                self.history.append({"role": "user", "images": [], "text": "[TEST AUTOMATIQUE] " + "\n\n".join(
-                                    f"Le projet « {self.projects[p]['title']} » (project {p}) a été exécuté et ne fonctionne pas encore :\n{r['report']}"
-                                    for p, r in failed) + "\n\nCorrige la cause : renvoie les fichiers concernés COMPLETS (même project, même path). "
-                                    "Le projet sera re-testé automatiquement ; ne réponds pas à l'utilisateur avant que ce soit corrigé."})
-                                continue
-                            if failed:
-                                warn = (f"\n\n⚠️ Les tests automatiques échouent encore après {MAX_FIX_ROUNDS} corrections : regarde la Console du projet."
-                                        if self.lang == "French" else
-                                        f"\n\n⚠️ The automatic tests still fail after {MAX_FIX_ROUNDS} fixes: see the project's Console.")
-                            dirty.clear()
-                        text = self.fix_language(text or act.get("thought") or "...") + warn
-                        if "```" in text:
-                            short = self.auto_artifacts(text, ev)
-                            if short != text:  # the code lives in the artifact: the history keeps no copy of it
-                                self.history[-1]["text"] = json.dumps(act | {"args": {"text": short + " [code dans l'artifact, voir ARTIFACTS]"}}, ensure_ascii=False)
-                                text = short
-                        ev({"type": "reply", "text": text})
-                        replied = True
-                        break
-                    sig = json.dumps([name, args], sort_keys=True)
-                    if sig == last_sig:
-                        self.history.append({"role": "user", "images": [], "text":
-                            "[REFUSED] Identical arguments to the previous attempt. Change something concrete, or reply."})
-                        continue
-                    last_sig = sig
-                    if name == "generate" and args.get("project") and args.get("path"):
-                        made = self.projects.get(re.sub(r"[^a-z0-9-]+", "-", str(args["project"]).lower()).strip("-")[:40], {}).get("assets", {})
-                        want = clean_path(args["path"])
-                        if want in made or want + ".png" in made:  # already generated for this project: no duplicate
-                            free += 1 if free < 60 else 0
-                            self.history.append({"role": "user", "images": [], "text":
-                                f"[DEJA FAIT] L'image « {want} » existe déjà dans le projet : ne la régénère pas. "
-                                "Continue avec les fichiers ou images qui manquent, ou réponds."})
-                            continue
-                    ev({"type": "tool", "name": name, "args": args})
-                    try:
-                        tools_used = True
-                        new, crops = (self.tool_generate if name == "generate" else self.tool_edit)(args)
-                        ev({"type": "image", "id": new, "refs": crops})
-                        saved = ""
-                        if args.get("project") and args.get("path"):  # image made for a project (website illustration...)
-                            pid, p, path = self.project_asset(args, new)
-                            touched.add(pid)
-                            last_pid = pid
-                            dirty.add(pid)
-                            free += 1 if free < 60 else 0
-                            ev({"type": "project", "id": pid, "title": p["title"], "path": path, "asset": new,
-                                "entry": p["entry"], "version": p["version"]})
-                            saved = f" Elle est enregistrée dans le projet {pid} sous « {path} » : utilise exactement ce chemin relatif dans le HTML/CSS."
-                        left = max_steps - step - 1
-                        parent = self.images[new].get("parent")
-                        local = name == "edit" and isinstance(args.get("region"), list)
-                        obs = (f"[RESULTAT] {name} a produit l'image #{new} (ci-dessous)"
-                               + (f", avec les decoupes de reference {', '.join('#%d' % c for c in crops)}" if crops else "")
-                               + f". Verifie-la par rapport a la demande{' et aux references' if crops else ''}. "
-                               + (f"Compare la zone modifiee avec l'original #{parent} : dans \"thought\", liste ce qui se trouve "
-                                  f"MAINTENANT a cet endroit. Un objet qui n'y etait pas (ou qui a juste change de forme) = echec. "
-                                  if local and parent else "")
-                               + saved + f" Si c'est bon : continue (autres fichiers ou images du projet) ou reply. "
-                               f"Sinon corrige et relance ({left} etape(s) restante(s)).")
-                        self.history.append({"role": "user", "text": obs, "images": [new] + crops})
-                    except Exception as e:
-                        ev({"type": "error", "text": str(e)})
-                        self.history.append({"role": "user", "text": f"[ERREUR OUTIL] {e}. Corrige les arguments ou explique le probleme a l'utilisateur.", "images": []})
-                if not replied:  # out of attempts: never end a turn in silence, say honestly where things stand
-                    fr = self.lang == "French"
-                    done = [f"« {self.projects[p]['title']} » ({len(self.projects[p]['files'])} fichiers)" if fr else
-                            f"\"{self.projects[p]['title']}\" ({len(self.projects[p]['files'])} files)" for p in touched]
-                    miss = self.missing_files(touched)
-                    text = (("Je n'ai pas réussi à tout terminer dans le nombre d'étapes prévu. " if fr else
-                             "I could not finish everything within the allowed number of steps. ")
-                            + ((("Ce qui est prêt : " if fr else "What is ready: ") + ", ".join(done) + ". ") if done else "")
-                            + ((("Il manque encore : " if fr else "Still missing: ") + ", ".join(miss) + ". ") if miss else "")
-                            + ("Dis-moi « continue » pour que je reprenne." if fr else "Say \"continue\" and I will pick up from there."))
-                    self.history.append({"role": "assistant", "text": json.dumps({"action": "reply", "args": {"text": text}}, ensure_ascii=False)})
-                    ev({"type": "reply", "text": text})
+                        args = self._route_pathless(t, args)
+                    if name == "artifact" and t.step < t.max_steps:
+                        if args.get("path") or args.get("project"):
+                            self._on_project_file(t, args, ev)
+                        else:
+                            self._on_artifact(t, args, ev)
+                    elif name not in ("generate", "edit") or t.step == t.max_steps:
+                        if self._on_reply(t, act, args, ev):
+                            t.replied = True
+                            break
+                    else:
+                        self._on_image_tool(t, name, args, ev)
+                if not t.replied:
+                    self._give_up(t, ev)
             except Exception as e:
                 ev({"type": "error", "text": f"assistant indisponible : {e}"})
             finally:
                 ev({"type": "done"})
                 self.save()
+
+
+class _Turn:
+    """State of one conversation turn."""
+
+    def __init__(self, max_steps, past_replies):
+        self.max_steps, self.past_replies = max_steps, past_replies
+        self.step = 0
+        self.free = 0          # actions that do not use up an attempt (files, project images, test rounds)
+        self.touched, self.dirty = set(), set()   # projects written this turn / not tested since their last change
+        self.test_rounds, self.last_pid, self.last_sig = 0, None, None
+        self.nudges, self.tools_used, self.replied = 0, False, False
+
+    def spare(self):
+        if self.free < 60:
+            self.free += 1

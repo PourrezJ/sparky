@@ -12,7 +12,7 @@ import json, os, re, shutil, socket, subprocess, sys, tempfile, time, urllib.req
 
 import config
 
-NOWIN = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+NOWIN = config.NOWIN
 
 
 def node_dir():
@@ -48,15 +48,33 @@ def run(cmd, cwd, timeout):
     if nd:
         env["PATH"] = nd + os.pathsep + env.get("PATH", "")
     try:
-        p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           timeout=timeout, stdin=subprocess.DEVNULL, creationflags=NOWIN, env=env, shell=False)
-        return p.returncode, (p.stdout or "") + (("\n" + p.stderr) if p.stderr.strip() else ""), False
-    except subprocess.TimeoutExpired as e:
-        out = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
-        err = e.stderr.decode("utf-8", "replace") if isinstance(e.stderr, bytes) else (e.stderr or "")
-        return None, out + ("\n" + err if err.strip() else ""), True
+        p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                             errors="replace", stdin=subprocess.DEVNULL, creationflags=NOWIN, env=env, shell=False)
     except FileNotFoundError as e:
         return 127, str(e), False
+    try:
+        out, err = p.communicate(timeout=timeout)
+        timed_out = False
+    except subprocess.TimeoutExpired:
+        kill_tree(p.pid)  # npm.cmd -> cmd.exe -> node.exe: killing only the first one leaves node running
+        out, err = p.communicate()
+        timed_out = True
+    return (None if timed_out else p.returncode), (out or "") + (("\n" + err) if (err or "").strip() else ""), timed_out
+
+
+def kill_tree(pid):
+    import psutil
+    try:
+        parent = psutil.Process(pid)
+        procs = parent.children(recursive=True) + [parent]
+    except psutil.Error:
+        return
+    for proc in procs:
+        try:
+            proc.kill()
+        except psutil.Error:
+            pass
+    psutil.wait_procs(procs, timeout=5)
 
 
 def browser_path():
@@ -93,7 +111,7 @@ def browser_errors(url, wait=2.5):
         port = s.getsockname()[1]
     prof = tempfile.mkdtemp(prefix="sparky-check-")
     proc = subprocess.Popen([exe, "--headless=new", f"--remote-debugging-port={port}", f"--user-data-dir={prof}", "--no-first-run",
-                             "--disable-gpu", "--mute-audio", "--remote-allow-origins=*", "about:blank"], creationflags=NOWIN,
+                             "--disable-gpu", "--mute-audio", "about:blank"], creationflags=NOWIN,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     errors, seen = [], set()
 
@@ -170,7 +188,7 @@ def browser_errors(url, wait=2.5):
         ws.close()
         return errors
     finally:
-        proc.kill()
+        kill_tree(proc.pid)  # the browser and its helper processes
         shutil.rmtree(prof, ignore_errors=True)
 
 

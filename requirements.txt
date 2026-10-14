@@ -3,3 +3,4 @@ psutil
 pillow
 websocket-client
 pypdf
+anthropic

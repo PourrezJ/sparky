@@ -1,5 +1,5 @@
 """Offline voice dictation: Whisper (transformers + PyTorch), loaded on demand and freed after 10 min of inactivity."""
-import io, threading, time, wave
+import io, re, threading, time, wave
 
 import numpy as np
 
@@ -48,8 +48,6 @@ def read_wav(data):
         pcm = np.interp(x, np.arange(len(pcm)), pcm).astype(np.float32)
     return pcm
 
-
-import re
 
 # phrases Whisper invents on silence or noise (seen in its subtitle training data)
 ARTEFACT = re.compile(r"^\s*(thanks for watching!?|merci d'avoir regardé.*|sous-titres? .*|sous-titrage .*|.*amara\.org.*|"

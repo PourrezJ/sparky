@@ -7,7 +7,7 @@
 - when idle, the bot "reflects": merges duplicates, updates the summary, writes a journal entry and
   prepares what to ask next time (like OpenAI Dots' background work). Everything stays inspectable.
 """
-import json, re, threading, time, urllib.request
+import contextlib, json, re, threading, time
 from datetime import datetime
 
 import harness
@@ -58,26 +58,16 @@ def _gain(points):
 
 def llm(messages, json_mode=False, max_tokens=900, temperature=0.7, stream=None):
     body = {"messages": messages, "max_tokens": max_tokens, "temperature": temperature,
-            "chat_template_kwargs": {"enable_thinking": False}, "stream": bool(stream)}
+            "chat_template_kwargs": {"enable_thinking": False}}
     if json_mode:
         body["response_format"] = {"type": "json_object"}
-    req = urllib.request.Request(harness.LLM + "/v1/chat/completions", json.dumps(body).encode(), {"Content-Type": "application/json"})
-    with harness.busy("llm"), urllib.request.urlopen(req, timeout=600) as r:
-        if not stream:
-            out = json.load(r)["choices"][0]["message"]["content"] or ""
-        else:
-            out, last = "", 0.0
-            for raw in r:
-                line = raw.decode("utf-8", "replace").strip()
-                if not line.startswith("data: ") or line == "data: [DONE]":
-                    continue
-                try:
-                    out += json.loads(line[6:])["choices"][0]["delta"].get("content") or ""
-                except (ValueError, KeyError, IndexError):
-                    continue
-                if time.time() - last > 0.05:
-                    last = time.time()
-                    stream(re.sub(r"<think>.*?(</think>|$)", "", out, flags=re.S).lstrip())
+    out, last = "", 0.0
+    with harness.busy("llm"), contextlib.closing(harness.chat_deltas(body)) as deltas:  # local or cloud model
+        for piece, _ in deltas:
+            out += piece
+            if stream and time.time() - last > 0.05:
+                last = time.time()
+                stream(re.sub(r"<think>.*?(</think>|$)", "", out, flags=re.S).lstrip())
     out = re.sub(r"<think>.*?</think>", "", out, flags=re.S).strip()
     if json_mode:
         m = re.search(r"\{.*\}", out, re.S)
@@ -291,7 +281,6 @@ def greeting(emit=None):
     last = S.messages(1)
     if last and time.time() - last[-1]["ts"] < 3 * 3600:
         return None
-    p = profile()
     sysp, _ = system_prompt("greeting how are you news follow up")
     first = not last
     ask = ("This is your very first conversation: introduce yourself in 2 short sentences (your name, that you run on their PC, "

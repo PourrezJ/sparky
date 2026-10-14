@@ -119,8 +119,8 @@ def _llm_item(path, size, source, label=None, mmproj=None):
             "label": catalog.BY_ID[match]["label"] if match else (label or stem), "source": source, "match": match}
 
 
-def _ollama(items, used):
-    man = os.path.join(OLLAMA, "manifests")
+def _ollama(items, used, root):
+    man = os.path.join(root, "manifests")
     if not os.path.isdir(man):
         return
     for dirpath, _, files in os.walk(man):
@@ -129,9 +129,9 @@ def _ollama(items, used):
                 layers = json.load(open(os.path.join(dirpath, tag), encoding="utf-8")).get("layers", [])
             except (OSError, ValueError):
                 continue
-            blob = lambda t: next((os.path.join(OLLAMA, "blobs", l["digest"].replace(":", "-")) for l in layers
-                                   if l.get("mediaType") == "application/vnd.ollama.image." + t), None)
-            path, proj = blob("model"), blob("projector")
+            blobs = {l.get("mediaType", "").rsplit(".", 1)[-1]: os.path.join(root, "blobs", l["digest"].replace(":", "-"))
+                     for l in layers if l.get("digest")}
+            path, proj = blobs.get("model"), blobs.get("projector")
             if not path or not os.path.exists(path) or not _gguf(path):
                 continue
             if os.path.normcase(os.path.realpath(path)) in used:
@@ -144,45 +144,61 @@ def _ollama(items, used):
                                    proj if proj and os.path.exists(proj) else None))
 
 
-def run():
+def _local_drive(letter):
+    """Fixed or removable disk (a disconnected network drive or an empty DVD drive can block the scan)."""
+    import ctypes
+    return ctypes.windll.kernel32.GetDriveTypeW(letter + ":\\") in (2, 3)  # DRIVE_REMOVABLE, DRIVE_FIXED
+
+
+def default_roots():
+    """(folder, depth) searched: known apps deeply, the user folder, other drives, then the system drive root."""
+    sysroot = os.path.splitdrive(HOME)[0] + "\\"
+    roots = [(d, 9) for d, _ in SOURCES] + [(HOME, 8)]
+    roots += [(c + ":\\", 6) for c in string.ascii_uppercase
+              if os.path.normcase(c + ":\\") != os.path.normcase(sysroot) and _local_drive(c)] if os.name == "nt" else []
+    return roots + ([(sysroot, 3)] if os.name == "nt" else [])
+
+
+def find(roots, ollama=None):
+    """Models found under `roots` (and in Ollama's store) that Sparky does not know yet."""
+    s, used, items = _Scan(), _used_paths(), []
+    _ollama(items, used, ollama or OLLAMA)
+    for d, depth in roots:
+        if os.path.isdir(d):
+            s.walk(d, depth)
+    found = sorted(s.ggufs.values(), key=lambda x: x[0].lower())
+    vision = {}  # folder -> its mmproj (vision) file
+    for p, _ in found:
+        if "mmproj" in os.path.basename(p).lower():
+            vision.setdefault(os.path.dirname(p), p)
+    for path, size in found:  # assistants
+        n = os.path.basename(path).lower()
+        if any(w in n for w in NOT_CHAT) or re.search(r"-0000[2-9]-of-", n) or catalog.blocked(path):
+            continue
+        if os.path.normcase(os.path.realpath(path)) in used or not _gguf(path):
+            continue
+        items.append(_llm_item(path, size, _source(path), mmproj=vision.get(os.path.dirname(path))))
+    for m in catalog.CATALOG:  # image models of the catalog found complete elsewhere (another ComfyUI...)
+        if m["kind"] != "image" or catalog.installed(m):
+            continue
+        src = [s.named.get(os.path.basename(f[2]).lower()) for f in m["files"] if f]
+        if all(src):
+            items.append({"key": _key(src[0]), "kind": "image", "match": m["id"], "label": m["label"], "path": src[0],
+                          "files": src, "size_gb": round(sum(os.path.getsize(p) for p in src) / 2**30, 1),
+                          "source": _source(src[0])})
+    state["dirs"] = s.dirs
+    seen = set()  # the same file can be reached twice (Hugging Face snapshot + blob)
+    return [i for i in items if not (i["key"] in seen or seen.add(i["key"]))]
+
+
+def run(roots=None):
     with _lock:
         if state["state"] == "running":
             return
         state.update(state="running", items=[], dirs=0, secs=0.0)
     t0 = time.time()
     try:
-        s, used, items = _Scan(), _used_paths(), []
-        _ollama(items, used)
-        for d, _ in SOURCES:
-            if os.path.isdir(d):
-                s.walk(d, 9)
-        s.walk(HOME, 8)
-        for letter in string.ascii_uppercase:   # other drives, then the system drive root (shallow)
-            root = letter + ":\\"
-            if os.path.isdir(root) and os.path.normcase(root) != os.path.normcase(os.path.splitdrive(HOME)[0] + "\\"):
-                s.walk(root, 6)
-        s.walk(os.path.splitdrive(HOME)[0] + "\\", 3)
-        # assistants
-        found = sorted(s.ggufs.values(), key=lambda x: x[0].lower())
-        for path, size in found:
-            n = os.path.basename(path).lower()
-            if any(w in n for w in NOT_CHAT) or re.search(r"-0000[2-9]-of-", n) or catalog.blocked(path):
-                continue
-            if os.path.normcase(os.path.realpath(path)) in used or not _gguf(path):
-                continue
-            sib = [p for p, _ in found if os.path.dirname(p) == os.path.dirname(path) and "mmproj" in os.path.basename(p).lower()]
-            items.append(_llm_item(path, size, _source(path), mmproj=sib[0] if sib else None))
-        # image models of the catalog found complete elsewhere (another ComfyUI...)
-        for m in catalog.CATALOG:
-            if m["kind"] != "image" or catalog.installed(m):
-                continue
-            src = [s.named.get(os.path.basename(f[2]).lower()) for f in m["files"] if f]
-            if all(src):
-                items.append({"key": _key(src[0]), "kind": "image", "match": m["id"], "label": m["label"], "path": src[0],
-                              "files": src, "size_gb": round(sum(os.path.getsize(p) for p in src) / 2**30, 1),
-                              "source": _source(src[0])})
-        seen = set()   # the same file can be reached twice (Hugging Face snapshot + blob)
-        state["items"] = [i for i in items if not (i["key"] in seen or seen.add(i["key"]))]
+        state["items"] = find(roots or default_roots())
     finally:
         state.update(state="done", secs=round(time.time() - t0, 1))
 
@@ -199,14 +215,16 @@ def status():
     return state | {"items": [i | {"added": added(i)} for i in state["items"]]}
 
 
-def _link(src, dst):
-    """Hard link (instant, no extra space) when on the same disk, copy otherwise."""
+def _link(src, dst, copy=True):
+    """Hard link (instant, no extra space) when on the same disk; otherwise a copy, or OSError if copy=False."""
     if os.path.exists(dst):
         return
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     try:
         os.link(src, dst)
     except OSError:
+        if not copy:
+            raise
         shutil.copyfile(src, dst + ".part")
         os.replace(dst + ".part", dst)
 
@@ -224,9 +242,9 @@ def use(key):
     if it["match"]:   # a catalog model: link it where Sparky expects it (keeps its speed and quality data)
         m = catalog.BY_ID[it["match"]]
         try:
-            _link_same_disk(it["path"], m["files"][0][2])
+            _link(it["path"], m["files"][0][2], copy=False)
             if it["mmproj"] and m["files"][1]:
-                _link_same_disk(it["mmproj"], m["files"][1][2])
+                _link(it["mmproj"], m["files"][1][2], copy=False)
             return m["id"]
         except OSError:
             pass  # other disk: used in place below
@@ -244,10 +262,3 @@ def use(key):
         catalog.BY_ID[mid] = m
         catalog.save_custom()
     return mid
-
-
-def _link_same_disk(src, dst):
-    if os.path.exists(dst):
-        return
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    os.link(src, dst)
