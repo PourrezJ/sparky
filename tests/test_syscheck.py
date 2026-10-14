@@ -20,11 +20,21 @@ def test_rtx_5090_gets_the_smartest_model_and_fast_images():
 
 @pytest.mark.parametrize("gpu,vram", [("NVIDIA GeForce RTX 4060", 8), ("NVIDIA GeForce RTX 3060", 12)])
 def test_mid_range_gpus_get_a_model_that_fits(gpu, vram):
-    i = machine(gpu, vram)
     import catalog
+    i = machine(gpu, vram)
     llm = catalog.BY_ID[i["recommended"]["llm"]]
     assert llm["size_gb"] + 2.5 <= i["assess"]["model_mem_gb"]
-    assert i["recommended"]["image"] and i["recommended"]["voice"] == "whisper-turbo"
+    assert i["recommended"]["voice"] == "whisper-turbo"
+
+
+def test_image_model_is_recommended_only_when_it_fits():
+    """FLUX.2 Klein's size depends on the GPU running the tests (FP4 text encoder on RTX 50, FP8 elsewhere)."""
+    import catalog
+    klein = catalog.BY_ID["klein4b"]["size_gb"]
+    for vram in (8, 12, 16):
+        i = machine("NVIDIA GeForce RTX 4070", vram)
+        fits = klein <= i["assess"]["model_mem_gb"] + 2
+        assert (i["recommended"].get("image") is not None) == fits, (vram, klein)
 
 
 def test_no_gpu_runs_a_small_model_without_images():
