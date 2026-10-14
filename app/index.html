@@ -1201,7 +1201,7 @@ function bindCopy(c){const b=$('updCopy');if(b)b.onclick=()=>{navigator.clipboar
 function showUpd(v,msg){VER=v;const u=$('upd');$('updV').textContent='v'+v.latest;u.style.display='block';const M=$('updM'),go=$('updGo');
   go.style.display='';go.disabled=false;go.textContent='Installer la mise à jour';M.innerHTML='';
   if(!v.git){go.style.display='none';M.innerHTML="<span>Installation sans git : pour mettre à jour, relance la commande d'installation dans PowerShell :</span>"+cmdBox(v.command);bindCopy(v.command)}
-  else if(v.changes.length){const c='git -C "'+v.root+'" stash';go.textContent='Réessayer';
+  else if(v.changes.length){const c='git -C "'+v.root+'" stash -u';go.textContent='Réessayer';
     M.innerHTML='<span>Des fichiers de Sparky ont été modifiés sur ce PC, la mise à jour automatique les écraserait :</span><ul>'+v.changes.slice(0,8).map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul>'
       +'<span>Mets ces modifications de côté avec cette commande, puis clique sur Réessayer :</span>'+cmdBox(c);bindCopy(c)}
   if(msg)M.innerHTML='<span>La mise à jour a échoué :</span><code>'+esc(msg)+'</code>'+M.innerHTML}

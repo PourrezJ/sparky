@@ -32,7 +32,7 @@ def _num(v):
 def _git(*args, timeout=60):
     r = subprocess.run(["git", "-C", config.ROOT, *args], capture_output=True, text=True, timeout=timeout,
                        creationflags=NOWIN, encoding="utf-8", errors="replace")
-    return r.returncode, (r.stdout + r.stderr).strip()
+    return r.returncode, r.stdout + r.stderr  # not stripped: "git status --porcelain" lines start with a space
 
 
 def is_git():
@@ -44,7 +44,7 @@ def local_changes():
     if not is_git():
         return []
     code, out = _git("status", "--porcelain", "--untracked-files=no")
-    return [l[3:] for l in out.splitlines() if l.strip()] if code == 0 else []
+    return [l[3:].strip() for l in out.splitlines() if len(l) > 3] if code == 0 else []
 
 
 def check(force=False):
@@ -105,6 +105,7 @@ def update():
         return False, "modifications locales : " + ", ".join(s["changes"][:8])
     state.update(updating=True, log="")
     code, out = _git("pull", "--ff-only", timeout=180)
+    out = out.strip()
     state["log"] = out[-1500:]
     if code != 0:
         state["updating"] = False
