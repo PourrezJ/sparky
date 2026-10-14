@@ -12,7 +12,9 @@ from PIL import Image
 import catalog
 import config
 import harness
+import localscan
 import syscheck
+import updater
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NOWIN = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
@@ -106,11 +108,9 @@ def autostart():
             elif not harness.SETTINGS.get("ckpt") or not any(
                     m["kind"] == "image" and m["ckpt"] == harness.SETTINGS["ckpt"] and catalog.installed(m) for m in catalog.CATALOG):
                 imgs = [m for m in catalog.CATALOG if m["kind"] == "image" and catalog.installed(m)]
-                if imgs:
+                if imgs and alive(harness.COMFY + "/system_stats"):  # loaded through the switch: the UI shows it
                     rec = syscheck.current().get("recommended", {}).get("image")
-                    m = next((x for x in imgs if x["id"] == rec), imgs[0])
-                    harness.SETTINGS["ckpt"] = m["ckpt"]
-                    harness.save_settings()
+                    use_model(next((x for x in imgs if x["id"] == rec), imgs[0])["id"])
         except Exception as e:
             print("autostart :", e)
 
@@ -249,7 +249,8 @@ def metrics():
             "unified": a["assess"]["mode"] == "unified",
             "llm": {"name": LLMS.get(llm_state["name"], {}).get("label"), "up": llm_up, "active": harness.ACTIVITY["llm"] > 0},
             "image": {"name": harness.image_model().get("label") if harness.SETTINGS.get("ckpt") else None, "up": comfy["up"],
-                      "active": harness.ACTIVITY["image"] > 0 or comfy["running"] > 0, "queue": comfy["pending"]}}
+                      "active": harness.ACTIVITY["image"] > 0 or comfy["running"] > 0, "queue": comfy["pending"]},
+            "switch": {"phase": switch["phase"], "kind": switch["kind"], "label": switch["label"]}}
 
 
 def run_project(s, pid, p):
@@ -367,6 +368,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             m, ready = voice_model()
             return self.send(200, {"id": m["id"], "label": m["label"], "size_gb": m["size_gb"], "ready": ready,
                                    "job": catalog.jobs.get(m["id"])})
+        if path == "/api/localscan":  # models already on this PC (LM Studio, Ollama...)
+            return self.send(200, localscan.status())
+        if path == "/api/version":
+            return self.send(200, updater.status())
         if path == "/api/switch":
             return self.send(200, switch | {"elapsed": round(time.time() - switch["t0"], 1) if switch["t0"] else 0})
         if path == "/api/hf/search":
@@ -429,6 +434,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, {"ok": True})
         if self.path == "/api/use":
             return self.send(200, {"ok": use_model(b.get("id"))})
+        if self.path == "/api/localscan":
+            localscan.start()
+            return self.send(200, {"ok": True})
+        if self.path == "/api/localscan/use":
+            try:
+                mid = localscan.use(b.get("key"))
+            except Exception as e:
+                return self.send(400, {"error": str(e)})
+            return self.send(200, {"id": mid, "label": catalog.BY_ID[mid]["label"], "kind": catalog.BY_ID[mid]["kind"],
+                                   "ok": use_model(mid)})
+        if self.path == "/api/version/check":
+            updater.check(force=True)
+            return self.send(200, updater.status())
+        if self.path == "/api/update":
+            ok, msg = updater.update()
+            return self.send(200 if ok else 409, {"ok": ok, "message": msg})
         if self.path == "/api/hf/install":
             try:
                 return self.send(200, {"id": catalog.hf_install(b["repo"], b["path"], b.get("kind", "llm"))})
@@ -565,10 +586,18 @@ if __name__ == "__main__":
         start_comfy()
     if not a.no_llm:
         try:
-            start_llm(harness.SETTINGS["llm"])
+            if alive(harness.LLM + "/health"):  # llama-server still running from a previous session
+                start_llm(harness.SETTINGS["llm"])
+            else:  # load through the switch so the UI shows the loading steps
+                ok, rec = installed_llms(), syscheck.current().get("recommended", {}).get("llm")
+                pick = next((i for i in (harness.SETTINGS["llm"], rec) if i in ok), ok[0] if ok else None)
+                if pick:
+                    use_model(pick)
+                else:
+                    print("Aucun assistant installe : choisis-en un dans l'interface.")
         except Exception as e:
             print(e)
-    if not a.no_llm:
         threading.Thread(target=autostart, daemon=True).start()
-    print(f"Sparky : http://127.0.0.1:{a.port}")
+    updater.start()
+    print(f"Sparky {updater.current()} : http://127.0.0.1:{a.port}")
     Server(("127.0.0.1", a.port), Handler).serve_forever()

@@ -6,13 +6,14 @@
 # Options (or environment variables for the one-line install):
 #   -Lang en|fr      / $env:SPARKY_LANG      interface and installer language
 #   -Dir <folder>    / $env:SPARKY_DIR       install folder (default: %LOCALAPPDATA%\Sparky)
-#   -NoModels        / $env:SPARKY_NOMODELS  do not download the recommended models
+#   -Models          / $env:SPARKY_MODELS    also download the recommended models from the terminal
+#                                            (by default they are chosen in the browser at first launch)
 #   -Yes             / $env:SPARKY_YES       answer yes to every question (English unless -Lang)
-#   -NoLaunch                                do not start Sparky at the end
+#   -NoLaunch        / $env:SPARKY_NOLAUNCH  do not open Sparky at the end
 #
 # This file is pure ASCII on purpose (a BOM would break "irm | iex"): accents and symbols are
 # written as \uXXXX and decoded at runtime.
-param([string]$Dir = "", [string]$Lang = "", [switch]$NoModels, [switch]$Yes, [switch]$NoLaunch)
+param([string]$Dir = "", [string]$Lang = "", [switch]$Models, [switch]$NoModels, [switch]$Yes, [switch]$NoLaunch)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -21,7 +22,9 @@ try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 $Repo = 'https://github.com/anisayari/sparky'
 if (-not $Lang -and $env:SPARKY_LANG) { $Lang = $env:SPARKY_LANG }
 if (-not $Dir -and $env:SPARKY_DIR) { $Dir = $env:SPARKY_DIR }
-if ($env:SPARKY_NOMODELS) { $NoModels = $true }
+if ($env:SPARKY_MODELS) { $Models = $true }
+if ($env:SPARKY_NOMODELS) { $NoModels = $true }   # old option: models are no longer downloaded by default
+if ($env:SPARKY_NOLAUNCH) { $NoLaunch = $true }
 if ($env:SPARKY_YES) { $Yes = $true }
 $Interactive = -not $Yes
 
@@ -133,7 +136,7 @@ $TX = @{
   en = @{ step = 'Step'; yn = '[Y/n]'; ny = '[y/N]'; logat = 'Full log:'; dlfail = 'Download failed:'
           welcome1 = 'Chat, vision, images, code and voice dictation,'; welcome2 = 'running entirely on this PC. Nothing leaves it.'
           s1 = 'Checking your machine'; s2 = 'Sparky files'; s3 = 'Python'; s4 = 'Image engine (PyTorch + ComfyUI)'; s5 = 'AI engine (llama.cpp)'
-          s6 = 'Recommended models'; s7 = 'Shortcuts'
+          s6 = 'System scan'; s7 = 'Shortcuts'
           nogpu = 'No NVIDIA GPU: the assistant runs on the processor (slower), no image generation.'
           lowdisk = 'Less than 25 GB free: the tools take ~8 GB, plus 3 to 20 GB per model.'
           folder = 'Install folder'; folderq = 'Press Enter to accept, or type another folder:'; dlcode = 'Downloading Sparky'; updated = 'Updating Sparky'
@@ -141,13 +144,13 @@ $TX = @{
           torch = 'Installing PyTorch'; torchhint = '(~2 GB, a few minutes)'; comfy = 'ComfyUI'; ipa = 'IP-Adapter'; deps = 'Installing dependencies'
           gpuok = 'GPU acceleration'; nogpuacc = 'no GPU acceleration'; scan = 'Analysing your hardware'
           level = 'Level:'; usable = 'GB usable for models'; recommended = 'Recommended for this PC'; assistant = 'Assistant'; images = 'Images'; voice = 'Voice'
-          dlq = 'Download them now?'; later = 'You can install them later from Settings > Model library.'; total = 'Total'
+          later = 'You will choose and install your models in the browser, at first launch.'; total = 'Total'
           shortcut = 'Desktop and Start menu shortcuts: Sparky'; ready = 'Sparky is ready!'; launchhow = 'Launch it with the "Sparky" shortcut on your desktop,'
-          launchhow2 = 'or start.bat in the install folder.'; launchq = 'Launch Sparky now?'; bye = 'Enjoy!'; already = 'already installed'; existing = 'Using' }
+          launchhow2 = 'or start.bat in the install folder.'; opening = 'Opening Sparky in your browser...'; bye = 'Enjoy!'; already = 'already installed'; existing = 'Using' }
   fr = @{ step = (U '\u00c9tape'); yn = '[O/n]'; ny = '[o/N]'; logat = 'Journal complet :'; dlfail = (U 'T\u00e9l\u00e9chargement impossible :')
           welcome1 = (U 'Chat, vision, images, code et dict\u00e9e vocale,'); welcome2 = (U 'enti\u00e8rement sur ce PC. Rien n''en sort.')
           s1 = (U 'V\u00e9rification de ta machine'); s2 = 'Fichiers de Sparky'; s3 = 'Python'; s4 = (U 'Moteur d''images (PyTorch + ComfyUI)'); s5 = 'Moteur IA (llama.cpp)'
-          s6 = (U 'Mod\u00e8les recommand\u00e9s'); s7 = 'Raccourcis'
+          s6 = 'Diagnostic de ta machine'; s7 = 'Raccourcis'
           nogpu = (U 'Pas de GPU NVIDIA : l''assistant tourne sur le processeur (plus lent), pas d''images.')
           lowdisk = (U 'Moins de 25 Go libres : les outils prennent ~8 Go, plus 3 \u00e0 20 Go par mod\u00e8le.')
           folder = (U 'Dossier d''installation'); folderq = (U 'Entr\u00e9e pour accepter, ou tape un autre dossier :'); dlcode = (U 'T\u00e9l\u00e9chargement de Sparky'); updated = (U 'Mise \u00e0 jour de Sparky')
@@ -155,9 +158,9 @@ $TX = @{
           torch = 'Installation de PyTorch'; torchhint = '(~2 Go, quelques minutes)'; comfy = 'ComfyUI'; ipa = 'IP-Adapter'; deps = (U 'Installation des d\u00e9pendances')
           gpuok = (U 'Acc\u00e9l\u00e9ration GPU'); nogpuacc = (U 'sans acc\u00e9l\u00e9ration GPU'); scan = (U 'Analyse du mat\u00e9riel')
           level = 'Niveau :'; usable = (U 'Go utilisables pour les mod\u00e8les'); recommended = (U 'Recommand\u00e9 pour ce PC'); assistant = 'Assistant'; images = 'Images'; voice = 'Voix'
-          dlq = (U 'Les t\u00e9l\u00e9charger maintenant ?'); later = (U 'Tu pourras les installer depuis Param\u00e8tres > Biblioth\u00e8que de mod\u00e8les.'); total = 'Total'
+          later = (U 'Tu choisiras et installeras tes mod\u00e8les dans le navigateur, au premier lancement.'); total = 'Total'
           shortcut = (U 'Raccourcis Bureau et menu D\u00e9marrer : Sparky'); ready = (U 'Sparky est pr\u00eat !'); launchhow = 'Lance-le avec le raccourci "Sparky" sur ton Bureau,'
-          launchhow2 = 'ou start.bat dans le dossier d''installation.'; launchq = 'Lancer Sparky maintenant ?'; bye = 'Amuse-toi bien !'; already = (U 'd\u00e9j\u00e0 install\u00e9'); existing = 'Dossier' }
+          launchhow2 = 'ou start.bat dans le dossier d''installation.'; opening = 'Ouverture de Sparky dans ton navigateur...'; bye = 'Amuse-toi bien !'; already = (U 'd\u00e9j\u00e0 install\u00e9'); existing = 'Dossier' }
 }
 function T([string]$k) { $v = $TX[$script:L][$k]; if ($v) { $v } else { $TX['en'][$k] } }
 
@@ -363,11 +366,9 @@ $lines += ("{0,-42}{1,6:N1} {2}" -f (T 'total'), $sum, $gbu)
 Write-Host ""
 Write-Host ("    " + (T 'recommended')) -ForegroundColor White
 Box $lines 'DarkCyan'
-if (-not $NoModels -and $sum -gt 0) {
-  if (Ask (T 'dlq')) {
-    Write-Host ""
-    & $vpy app\models_cli.py --recommended "--lang=$script:L"
-  } else { Info (T 'later') }
+if ($Models -and -not $NoModels -and $sum -gt 0) {
+  Write-Host ""
+  & $vpy app\models_cli.py --recommended "--lang=$script:L"
 } else { Info (T 'later') }
 Pop-Location
 
@@ -389,7 +390,8 @@ Ok (T 'shortcut')
 Write-Host ""
 Box @('', ("$($G.ok)  " + (T 'ready')), '', (T 'launchhow'), (T 'launchhow2'), '') 'Green'
 Write-Host ""
-if (-not $NoLaunch -and (Ask (T 'launchq'))) {
+if (-not $NoLaunch) {
+  Info (T 'opening')
   & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'start.ps1')
   Write-Host ("    " + (T 'bye')) -ForegroundColor Magenta
 }

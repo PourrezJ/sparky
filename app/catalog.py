@@ -358,7 +358,7 @@ def delete(mid):
     if not m:
         return
     shared = {f[2] for o in CATALOG if o is not m and installed(o) for f in o["files"] if f}
-    for f in m["files"]:
+    for f in [] if m.get("local") else m["files"]:  # models found on the PC (LM Studio, Ollama...) stay where they are
         if f and f[2] not in shared and os.path.exists(f[2]):
             os.remove(f[2])
     if m.get("custom"):

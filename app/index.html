@@ -212,7 +212,7 @@ table.lt{width:100%;border-collapse:collapse;font-size:14px}
 #pick .ft{border-top:1px solid var(--line);margin-top:4px;padding:8px 10px 4px;font-size:12.5px;color:var(--mut);cursor:pointer}
 #pick .ft:hover{color:var(--txt)}
 /* ---- chargement de modèle */
-#sw{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:14;background:#2a2a2a;border:1px solid var(--line);border-radius:14px;padding:12px 16px;width:min(420px,92vw);box-shadow:0 10px 40px #000b;display:none}
+#sw{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:16;background:#2a2a2a;border:1px solid var(--line);border-radius:14px;padding:12px 16px;width:min(420px,92vw);box-shadow:0 10px 40px #000b;display:none}
 .swh{display:flex;align-items:center;gap:10px}
 .swh b{font-weight:500}.swh .sp{flex:1}
 #swE{font-size:12px;color:var(--mut)}
@@ -407,6 +407,20 @@ body.botmode #scroll,body.botmode footer,body.botmode #art{display:none!importan
 .sysline span{flex:1;min-width:0}.sysline b{color:var(--txt);font-weight:500}
 .sysline button{padding:5px 12px;border-radius:14px;background:#3a3a3a;color:var(--txt);font-size:12.5px;white-space:nowrap}
 .sysline button:hover{background:#fff;color:#000}
+#welc .lng{margin-left:auto;display:flex;gap:4px;background:#1b1b1b;border-radius:16px;padding:3px;align-self:flex-start}
+#welc .lng button{padding:4px 11px;border-radius:13px;font-size:12.5px;color:var(--mut)}
+#welc .lng button.on{background:#3a3a3a;color:var(--txt)}
+.loch{display:flex;align-items:center;gap:10px;margin:18px 0 0;font-size:14px}.loch b{font-weight:550;flex:1}
+.loch button,.rc .locuse{padding:5px 12px;border-radius:14px;background:#3a3a3a;font-size:12.5px;white-space:nowrap}
+.rc .locuse:hover{background:#fff;color:#000}.rc .locuse:disabled{opacity:.6}
+.locw{display:flex;align-items:center;gap:6px}.locw .spin{width:12px;height:12px;margin-right:4px}
+#upd{position:fixed;bottom:16px;right:16px;z-index:13;background:#2a2a2a;border:1px solid var(--line);border-radius:14px;padding:12px 14px;width:min(400px,calc(100vw - 32px));box-shadow:0 10px 40px #000b;display:none;font-size:13.5px}
+#upd .uh{display:flex;align-items:center;gap:10px}#upd .uh>span{flex:1}
+#upd .uh button{padding:5px 12px;border-radius:14px;font-size:12.5px;white-space:nowrap}
+#updX{background:none;color:var(--mut);font-size:16px!important;padding:2px 6px!important}
+#updM{color:var(--mut);font-size:12.5px;margin-top:8px}#updM:empty{display:none}
+#updM code{display:block;background:#1b1b1b;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:12px;word-break:break-all;color:var(--txt)}
+#updM ul{margin:4px 0;padding-left:18px}
 </style>
 </head>
 <body>
@@ -515,6 +529,7 @@ body.botmode #scroll,body.botmode footer,body.botmode #art{display:none!importan
 <div id="set"><div class="card">
   <h3>Paramètres</h3>
   <div class="f"><label>Langue</label><select id="langSel"><option value="en">English</option><option value="fr">Français</option></select></div>
+  <div class="f"><label>Version</label><div class="sysline"><span id="verL">…</span><button id="verChk">Vérifier les mises à jour</button></div></div>
   <div class="f"><label>Système</label><div class="sysline"><span id="sysSum">…</span><button id="sysAgain">Relancer l'analyse</button><button id="sysOpen">Détail</button></div></div>
   <div class="f"><label>Assistant</label><div class="sel"><select id="llmSel"></select><span class="ind" id="llmInd"></span></div></div>
   <div class="f"><label>Niveau de réflexion</label><div class="seg" id="thkSet"></div></div>
@@ -531,11 +546,14 @@ body.botmode #scroll,body.botmode footer,body.botmode #art{display:none!importan
 </div></div>
 <div id="pick"></div>
 <div id="welc"><div class="card">
-  <div class="hd"><img src="/logo.png" alt=""><div><h2 id="wT">Bienvenue dans Sparky</h2><p id="wP">Ton assistant IA privé : tout tourne sur cette machine.</p></div></div>
+  <div class="hd"><img src="/logo.png" alt=""><div><h2 id="wT">Bienvenue dans Sparky</h2><p id="wP">Ton assistant IA privé : tout tourne sur cette machine.</p></div>
+    <div class="lng" id="wLang"><button data-l="fr">Français</button><button data-l="en">English</button></div></div>
   <div id="wSys"><div class="mute">Analyse de ta machine…</div></div>
+  <div id="wLoc"></div>
   <div id="wRec"></div>
   <div class="acts"><button id="wAgain">Relancer l'analyse</button><button id="wLib">Voir tous les modèles</button><button id="wInst" class="go">Installer les recommandés</button><button id="wOk" class="go">Continuer</button></div>
 </div></div>
+<div id="upd"><div class="uh"><span><span>Mise à jour disponible :</span> <b id="updV"></b></span><button id="updGo" class="go">Installer la mise à jour</button><button id="updX" title="Plus tard">×</button></div><div id="updM"></div></div>
 <div id="sw"><div class="swh"><span class="spin"></span><b id="swT"></b><span class="sp"></span><span id="swE"></span></div>
   <div class="swbar"><span id="swB"></span></div><div id="swS"></div></div>
 <div id="drop">Dépose tes images</div>
@@ -579,7 +597,15 @@ const EN={
  'Supprimer':'Delete','Peindre une zone à modifier':'Paint an area to change','Citer dans le message':'Quote in message','Supprimer les fichiers':'Delete files',
  'Installer':'Install','Utiliser':'Use','actif':'active','installé':'installed','recommandé':'recommended','recommandé pour ta machine':'recommended for your machine',
  "Comment puis-je t'aider ?":'How can I help?','Pose une question, envoie des images, demande une création.':'Ask a question, share images, or ask me to create something.',
- 'hors ligne':'offline','prêt':'ready','réfléchit…':'thinking…','vérifie le résultat…':'checking the result…','termine la demande précédente…':'finishing the previous request…',
+ 'Déjà sur ce PC':'Already on this PC','Recommandé pour ta machine':'Recommended for your machine','Chercher à nouveau':'Search again','Recherche des modèles déjà présents sur ce PC…':'Looking for models already on this PC…',
+ 'dossiers':'folders','Aucun modèle trouvé (LM Studio, Ollama, Hugging Face, dossiers…).':'No model found (LM Studio, Ollama, Hugging Face, folders…).','ajouté':'added','Ajout…':'Adding…',
+ 'Mise à jour disponible :':'Update available:','Installer la mise à jour':'Install the update','Plus tard':'Later','Réessayer':'Retry','Mise à jour…':'Updating…','Copier':'Copy','Copié':'Copied',
+ 'Mise à jour installée, redémarrage de Sparky…':'Update installed, restarting Sparky…','Vérifier les mises à jour':'Check for updates','Version':'Version',
+ "Installation sans git : pour mettre à jour, relance la commande d'installation dans PowerShell :":'Installed without git: to update, run the install command again in PowerShell:',
+ 'Des fichiers de Sparky ont été modifiés sur ce PC, la mise à jour automatique les écraserait :':'Some Sparky files were modified on this PC, the automatic update would overwrite them:',
+ 'Mets ces modifications de côté avec cette commande, puis clique sur Réessayer :':'Put these changes aside with this command, then click Retry:',
+ 'La mise à jour a échoué :':'The update failed:',
+ 'hors ligne':'offline','prêt':'ready','aucun modèle':'no model','chargement…':'loading…','réfléchit…':'thinking…','vérifie le résultat…':'checking the result…','termine la demande précédente…':'finishing the previous request…',
  'Génère une image':'Generating an image','Retouche':'Editing','détails':'details','envoi…':'sending…','envoyé':'sent','reçu':'received','lu':'read',
  'Réflexion':'Thinking','Copier':'Copy','Copié ✓':'Copied ✓','Ouvrir':'Open','Ouvrir ›':'Open ›','Version':'Version',
  'Désactivée':'Off','Légère':'Light','Normale':'Normal','Approfondie':'Deep','plus haut = plus lent, plus réfléchi':'higher = slower, more thoughtful',
@@ -637,6 +663,7 @@ const EN={
  "Sans GPU NVIDIA, l'assistant tourne sur le processeur : choisis un petit modèle.":'Without an NVIDIA GPU the assistant runs on the processor: pick a small model.',
 };
 const EN_RX=[
+ [/^(.+) · ([\d.]+) Go$/,'$1 · $2 GB'],[/^(.+) · à jour$/,'$1 · up to date'],[/^(.+) · nouvelle version (.+) disponible$/,'$1 · new version $2 available'],
  [/^Chargement de (.+)$/,'Loading $1'],[/^(.+) est prêt$/,'$1 is ready'],[/^Échec : (.+) — réessayer$/,'Failed: $1 — retry'],[/^Échec : (.+)$/,'Failed: $1'],
  [/^Décharge (.+)$/,'Unloading $1'],[/^Charge (.+)$/,'Loading $1'],
  [/^Retouche #(\d+)$/,'Editing #$1'],[/^zone peinte sur #(\d+)$/,'area painted on #$1'],[/^Réflexion en cours… (\d+) s$/,'Thinking… $1 s'],[/^Réflexion · (\d+) s$/,'Thought for $1 s'],
@@ -752,10 +779,12 @@ $('eph').onclick=()=>blank(!EPH);
 const hist={cpu:[],gpu:[]};
 function spark(svg,arr,color){const w=48,h=16,n=30;const a=arr.slice(-n);const pts=a.map((v,i)=>((i+n-a.length)*w/(n-1)).toFixed(1)+','+(h-1-(v/100)*(h-2)).toFixed(1)).join(' ');
   svg.innerHTML=a.length?'<polyline points="'+(a.length?((n-a.length)*w/(n-1)).toFixed(1)+','+h+' ':'')+pts+' '+w+','+h+'" fill="'+color+'22" stroke="none"/><polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="1.4"/>':''}
-function mdl(node,m,word){node.className='mdl '+(!m.up?'down':m.active?'act':'up');
-  node.querySelector('span').textContent=m.name||word;node.querySelector('small').textContent=!m.up?'hors ligne':m.active?'actif':'prêt'+(m.queue?' · '+m.queue+' en file':'')}
-async function metrics(){try{const m=await(await fetch('/api/metrics')).json();
-  mdl($('mLlm'),m.llm,'assistant');mdl($('mImg'),m.image,'image');
+function mdl(node,m,word,loading){const ok=m.up&&m.name&&!loading;node.className='mdl '+(loading?'act':!ok?'down':m.active?'act':'up');
+  node.querySelector('span').textContent=loading||m.name||word;
+  node.querySelector('small').textContent=loading?'chargement…':!m.name?'aucun modèle':!m.up?'hors ligne':m.active?'actif':'prêt'+(m.queue?' · '+m.queue+' en file':'')}
+async function metrics(){try{const m=await(await fetch('/api/metrics')).json();const sw=m.switch||{},ld=sw.phase==='loading';
+  mdl($('mLlm'),m.llm,'assistant',ld&&sw.kind==='llm'&&sw.label);mdl($('mImg'),m.image,'image',ld&&sw.kind==='image'&&sw.label);
+  if(ld&&!swBusy)showSwitch(sw.label);  // loading started by the server (first launch, model just downloaded)
   hist.cpu.push(m.cpu);hist.gpu.push(m.gpu.util??0);for(const k in hist)if(hist[k].length>30)hist[k].shift();
   spark($('sCpu'),hist.cpu,'#5aa9ff');spark($('sGpu'),hist.gpu,'#8c7cf0');
   $('vCpu').textContent=Math.round(m.cpu)+'%';$('vGpu').textContent=m.gpu.util!=null?Math.round(m.gpu.util)+'%':'–';
@@ -1154,7 +1183,7 @@ var swBusy=false,swTimer=null;
 async function useModel(id,label){
   const r=await(await fetch('/api/use',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})})).json();
   if(!r.ok){alert('Impossible de changer de modèle maintenant.');return}
-  swBusy=true;upd();const sw=$('sw');sw.className='';sw.style.display='block';$('swT').textContent='Chargement de '+label;pollSwitch()}
+  showSwitch(label)}
 async function pollSwitch(){clearTimeout(swTimer);const s=await(await fetch('/api/switch')).json();const sw=$('sw');
   $('swS').innerHTML=s.steps.map(st=>'<div class="'+st.state+'"><i>'+(st.state==='ok'?'✓':st.state==='err'?'✕':'<span class="spin" style="width:10px;height:10px;display:inline-block"></span>')+'</i>'+esc(st.text)+'</div>').join('');
   const pc=s.phase==='ready'?100:s.eta?Math.min(95,s.elapsed/s.eta*100):Math.min(60,s.elapsed*4);$('swB').style.width=pc+'%';
@@ -1164,7 +1193,34 @@ async function pollSwitch(){clearTimeout(swTimer);const s=await(await fetch('/ap
   if(s.phase==='ready'){sw.className='ok';$('swT').textContent=s.label+' est prêt';setTimeout(()=>{if(sw.className==='ok')sw.style.display='none'},2500)}
   else{sw.className='err';$('swT').textContent='Échec : '+s.label;$('swS').innerHTML+='<div class="err"><i></i>'+esc(s.error).slice(0,300)+'</div>';setTimeout(()=>sw.style.display='none',12000)}}
 $('sw').onclick=()=>{if(!swBusy)$('sw').style.display='none'};
-fetch('/api/switch').then(r=>r.json()).then(s=>{if(s.phase==='loading'){swBusy=true;$('sw').style.display='block';$('swT').textContent='Chargement de '+s.label;pollSwitch()}});
+
+// ---------- version and updates (VERSION file of the GitHub repository)
+let VER=null;
+function cmdBox(c){return '<code>'+esc(c)+'</code><button class="go" id="updCopy" style="padding:4px 12px;font-size:12px">Copier</button>'}
+function bindCopy(c){const b=$('updCopy');if(b)b.onclick=()=>{navigator.clipboard.writeText(c);b.textContent='Copié'}}
+function showUpd(v,msg){VER=v;const u=$('upd');$('updV').textContent='v'+v.latest;u.style.display='block';const M=$('updM'),go=$('updGo');
+  go.style.display='';go.disabled=false;go.textContent='Installer la mise à jour';M.innerHTML='';
+  if(!v.git){go.style.display='none';M.innerHTML="<span>Installation sans git : pour mettre à jour, relance la commande d'installation dans PowerShell :</span>"+cmdBox(v.command);bindCopy(v.command)}
+  else if(v.changes.length){const c='git -C "'+v.root+'" stash';go.textContent='Réessayer';
+    M.innerHTML='<span>Des fichiers de Sparky ont été modifiés sur ce PC, la mise à jour automatique les écraserait :</span><ul>'+v.changes.slice(0,8).map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul>'
+      +'<span>Mets ces modifications de côté avec cette commande, puis clique sur Réessayer :</span>'+cmdBox(c);bindCopy(c)}
+  if(msg)M.innerHTML='<span>La mise à jour a échoué :</span><code>'+esc(msg)+'</code>'+M.innerHTML}
+async function checkUpd(force){try{const v=await(await fetch(force?'/api/version/check':'/api/version',force?{method:'POST'}:{})).json();VER=v;
+  $('verL').textContent='Sparky '+v.version+' · '+(v.available?'nouvelle version '+v.latest+' disponible':'à jour');
+  let skip=null;try{skip=sessionStorage.getItem('sparky.updskip')}catch{}
+  if(v.available&&(force||skip!==v.latest))showUpd(v);else if(!v.available)$('upd').style.display='none'}catch{}}
+$('updX').onclick=()=>{$('upd').style.display='none';try{sessionStorage.setItem('sparky.updskip',VER&&VER.latest)}catch{}};
+$('verChk').onclick=()=>checkUpd(true);
+$('updGo').onclick=async()=>{const go=$('updGo');
+  if(VER&&VER.changes.length){await checkUpd(true);if(VER.changes.length)return}
+  go.disabled=true;go.textContent='Mise à jour…';$('updM').innerHTML='';
+  const r=await fetch('/api/update',{method:'POST'});const j=await r.json();
+  if(!r.ok){showUpd(await(await fetch('/api/version')).json(),j.message);return}
+  $('updM').innerHTML='<span>Mise à jour installée, redémarrage de Sparky…</span>';const old=VER.version;
+  const wait=async()=>{try{const v=await(await fetch('/api/version')).json();if(v.version!==old){location.reload();return}}catch{}setTimeout(wait,1500)};setTimeout(wait,3000)};
+checkUpd(false);setInterval(()=>checkUpd(false),600000);
+function showSwitch(label){swBusy=true;upd();const sw=$('sw');sw.className='';sw.style.display='block';$('swT').textContent='Chargement de '+label;pollSwitch()}
+fetch('/api/switch').then(r=>r.json()).then(s=>{if(s.phase==='loading')showSwitch(s.label)});
 
 // ---------- bibliothèque
 let sortK='quality',sortD=-1,filt='all',hfKind='llm',hfTimer=null;
@@ -1256,7 +1312,25 @@ let welcTimer=null,welcFirst=false;
 function showWelcome(first){welcFirst=first;$('welc').style.display='grid';
   $('wT').textContent=first?'Bienvenue dans Sparky':'Analyse du système';
   $('wP').textContent=first?'Ton assistant IA privé : tout tourne sur cette machine, rien n\'est envoyé sur Internet.':'Ce que ta machine peut faire tourner, et les modèles conseillés.';
-  $('wOk').textContent=first?'Continuer':'Fermer';renderWelcome()}
+  $('wOk').textContent=first?'Continuer':'Fermer';
+  document.querySelectorAll('#wLang button').forEach(b=>{b.classList.toggle('on',b.dataset.l===LANG);b.onclick=()=>{if(b.dataset.l!==LANG)setLang(b.dataset.l)}});
+  renderWelcome();renderLocal()}
+// models already on this PC (LM Studio, Ollama, Hugging Face cache, other folders): searched automatically
+let locStarted=false,locTimer=null;
+async function renderLocal(){clearTimeout(locTimer);let s=await(await fetch('/api/localscan')).json();
+  if(s.state==='idle'&&!locStarted){locStarted=true;await fetch('/api/localscan',{method:'POST'});s=await(await fetch('/api/localscan')).json()}
+  let h='<div class="loch"><b>Déjà sur ce PC</b>'+(s.state==='done'?'<button id="wLocAgain">Chercher à nouveau</button>':'')+'</div>';
+  if(s.state!=='done')h+='<div class="mute locw"><span class="spin"></span><span>Recherche des modèles déjà présents sur ce PC…</span><span>'+s.dirs+'</span><span>dossiers</span></div>';
+  else if(!s.items.length)h+='<div class="mute">Aucun modèle trouvé (LM Studio, Ollama, Hugging Face, dossiers…).</div>';
+  else h+='<div class="recs">'+s.items.map(i=>'<div class="rc"><span class="k">'+(i.kind==='llm'?IC.chat:IC.img)+'</span><div class="n"><b>'+esc(i.label)+'</b><small title="'+esc(i.path)+'">'
+    +esc(i.source)+' · '+i.size_gb.toFixed(1)+' Go</small></div>'+(i.added?'<span class="st ok">ajouté</span>':'<button class="locuse" data-k="'+i.key+'">Utiliser</button>')+'</div>').join('')+'</div>';
+  $('wLoc').innerHTML=h;
+  if($('wLocAgain'))$('wLocAgain').onclick=async()=>{await fetch('/api/localscan',{method:'POST'});renderLocal()};
+  $('wLoc').querySelectorAll('.locuse').forEach(b=>b.onclick=async()=>{b.disabled=true;b.textContent='Ajout…';
+    const r=await fetch('/api/localscan/use',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:b.dataset.k})});const j=await r.json();
+    if(!r.ok){alert(j.error);b.disabled=false;b.textContent='Utiliser';return}
+    if(j.ok)showSwitch(j.label);await renderWelcome();renderLocal()});
+  if(s.state==='running'&&$('welc').style.display==='grid')locTimer=setTimeout(renderLocal,1000)}
 async function renderWelcome(){clearTimeout(welcTimer);await loadCat();const s=SYS,a=s.assess,h=s.hw;
   $('wSys').innerHTML='<div class="sysg"><span>Système</span><div>'+esc(h.os)+' ('+esc(h.arch)+')</div><span>Processeur</span><div>'+esc(h.cpu)+' · '+h.cores+' cœurs</div>'
     +'<span>Mémoire</span><div>'+h.ram_gb.toFixed(0)+' Go'+(a.mode==='unified'?' (unifiée avec le GPU)':'')+'</div>'
@@ -1267,7 +1341,7 @@ async function renderWelcome(){clearTimeout(welcTimer);await loadCat();const s=S
     +(s.notes||[]).map(n=>'<div class="note">'+esc(n)+'</div>').join('')
     +'<div class="mute" style="padding-bottom:0">Analysé le '+new Date(s.ts*1000).toLocaleString((LANG==='fr'?'fr-FR':'en-US'))+'</div>';
   const recs=['llm','image','voice'].map(k=>CAT.find(m=>m.id===s.recommended[k])).filter(Boolean);
-  const box=$('wRec');box.innerHTML='<div class="recs">'+(recs.length?'':'<div class="mute">Aucun modèle recommandé pour cette machine.</div>')+recs.map(m=>{const j=m.job;
+  const box=$('wRec');box.innerHTML='<div class="loch"><b>Recommandé pour ta machine</b></div><div class="recs">'+(recs.length?'':'<div class="mute">Aucun modèle recommandé pour cette machine.</div>')+recs.map(m=>{const j=m.job;
     const st=m.installed?'<span class="st ok">installé</span>':j&&j.state==='running'?'<span class="st">'+(j.total?Math.floor(j.done/j.total*100):0)+' % · '+(j.done/2**30).toFixed(1)+'/'+(j.total/2**30).toFixed(1)+' Go</span>'
       :j&&j.state==='error'?'<span class="st" style="color:var(--bad)">échec, réessaie</span>':'<span class="st">'+m.size_gb.toFixed(1)+' Go</span>';
     return '<div class="rc"><span class="k">'+(m.kind==='llm'?IC.chat:m.kind==='voice'?IC.mic:IC.img)+'</span><div class="n"><b>'+esc(m.label)+'</b> <span class="ind">'+inds(m)+'</span><small>'
@@ -1280,7 +1354,7 @@ $('wAgain').onclick=async()=>{$('wSys').innerHTML='<div class="mute">Analyse de 
 $('wInst').onclick=async()=>{const ids=['llm','image','voice'].map(k=>SYS.recommended[k]).filter(Boolean);
   await fetch('/api/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});renderWelcome()};
 $('wLib').onclick=()=>{closeWelcome();showLib(true)};
-function closeWelcome(){clearTimeout(welcTimer);$('welc').style.display='none';if(welcFirst)fetch('/api/onboarded',{method:'POST'})}
+function closeWelcome(){clearTimeout(welcTimer);clearTimeout(locTimer);$('welc').style.display='none';if(welcFirst)fetch('/api/onboarded',{method:'POST'})}
 $('wOk').onclick=closeWelcome;
 loadCat().then(()=>{if(!ONB||!CAT.some(m=>m.kind==='llm'&&m.installed))showWelcome(!ONB)});
 $('setx').onclick=()=>$('set').style.display='none';

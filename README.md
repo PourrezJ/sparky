@@ -34,6 +34,7 @@ everything runs on your own PC. Nothing is sent to the internet.</p>
 - **Voice dictation, offline** — click the mic, talk, stop: Whisper turns your voice into text right in the input box.
 - **Adjustable thinking** — Off, Light, Normal or Deep, right from the model menu.
 - **System scan** — at install time (and anytime from *Settings > System*) Sparky checks your GPU, memory and disk, then **recommends the models that fit your machine**.
+- **Models already on your PC** — on first launch Sparky looks for the models you already have (LM Studio, Ollama, Hugging Face cache, Jan, GPT4All, llama.cpp, other ComfyUI installs, any folder) and uses them in one click, without downloading them again.
 - **Model library** — one-click installs with resumable downloads, and speed / quality / memory indicators *for your hardware*.
 - **Only official models** — Qwen, Gemma, gpt-oss, Nemotron, FLUX.2, Whisper… "uncensored", "abliterated" or NSFW variants are excluded from the catalog and from the Hugging Face search.
 - **English or French** — chosen during install, switchable in the settings.
@@ -100,12 +101,16 @@ The installer walks you through 7 simple steps:
 3. install Python 3.12 if needed (via winget),
 4. install PyTorch for your GPU and the image engine [ComfyUI](https://github.com/comfyanonymous/ComfyUI),
 5. install the AI engine [llama.cpp](https://github.com/ggml-org/llama.cpp) (CUDA build for NVIDIA GPUs, x64 or ARM64),
-6. scan your hardware, show the recommended models and offer to download them,
-7. create a **Sparky** shortcut on the desktop and in the Start menu.
+6. scan your hardware and show the models recommended for it (nothing is downloaded yet),
+7. create a **Sparky** shortcut on the desktop and in the Start menu, then open Sparky in your browser.
 
 <p align="center"><img src="docs/installer.png" alt="The step-by-step installer" width="560"></p>
 
-Then double-click the shortcut (or `start.bat`): Sparky opens at <http://127.0.0.1:7860>. To stop everything: `stop.bat`.
+Sparky then opens at <http://127.0.0.1:7860> on its welcome screen: pick your language, see the system scan, use the models **already on your PC** in one click, or install the recommended ones (or any other from *See all models*). Nothing is downloaded without your click.
+
+Next times, double-click the shortcut (or `start.bat`). To stop everything: `stop.bat`.
+
+Installer options: `-Lang en|fr`, `-Dir <folder>`, `-Yes` (no questions), `-Models` (also download the recommended models from the terminal), `-NoLaunch`. For the one-line install, use the environment variables `SPARKY_LANG`, `SPARKY_DIR`, `SPARKY_YES`, `SPARKY_MODELS`, `SPARKY_NOLAUNCH`.
 
 ### Which machine?
 
@@ -179,7 +184,7 @@ runtime\venv\Scripts\python.exe app\models_cli.py qwen359        # install one m
 
 ## Update / uninstall
 
-- **Update**: run the install command again (or `git pull` in the install folder).
+- **Update**: Sparky checks GitHub once an hour. When a new version is out, a message offers to **install the update**: Sparky runs `git pull` and restarts by itself. If files were modified locally, it lists them and gives the command to put them aside first; for an install made from the ZIP, it gives the install command to run again. The current version is in *Settings > Version* (and in the `VERSION` file).
 - **Uninstall**: `stop.bat`, then delete the install folder (`%LOCALAPPDATA%\Sparky` by default) and the shortcuts.
 
 ## Privacy
@@ -200,11 +205,14 @@ app/
   harness.py    agent: assistant <-> image tools loop, artifacts
   catalog.py    catalog, downloads, indicators
   syscheck.py   system scan and recommendations
+  localscan.py  finds the models already on the PC (LM Studio, Ollama, Hugging Face...)
+  updater.py    version check and one-click update (git pull)
   stt.py        offline voice dictation (Whisper)
   companion.py  Sparky Bot: persona, learning, reflection, journal (beta)
   memory.py     Sparky Bot memory: SQLite store + hybrid semantic retrieval
   index.html    interface (English / French)
 install.ps1     step-by-step installer
+VERSION         current version
 start.ps1 / stop.ps1
 docs/           screenshots and demos
 ```
