@@ -79,17 +79,20 @@ def status():
 
 def _restart():
     """Starts a new Sparky once this process has released its port, then exits."""
-    ps = os.path.join(config.ROOT, "start.ps1")
-    py = sys.executable.replace("'", "''")
-    port = config.APP_PORT
-    script = (f"Start-Sleep -Seconds 2; Start-Process '{py}' -ArgumentList 'app\\server.py','--port','{port}' "
-              f"-WorkingDirectory '{config.ROOT}' -WindowStyle Hidden "
-              f"-RedirectStandardOutput '{os.path.join(config.DATA, 'server.log')}' "
-              f"-RedirectStandardError '{os.path.join(config.DATA, 'server.err.log')}'")
-    if os.name != "nt" or not os.path.exists(ps):
+    if os.name != "nt":
         return
-    subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-                     creationflags=NOWIN | getattr(subprocess, "DETACHED_PROCESS", 0), close_fds=True)
+    q = lambda p: p.replace("'", "''")
+    script = (f"Start-Sleep -Seconds 2; Start-Process '{q(sys.executable)}' -ArgumentList 'app\\server.py','--port','{config.APP_PORT}' "
+              f"-WorkingDirectory '{q(config.ROOT)}' -WindowStyle Hidden "
+              f"-RedirectStandardOutput '{q(os.path.join(config.DATA, 'server.log'))}' "
+              f"-RedirectStandardError '{q(os.path.join(config.DATA, 'server.err.log'))}'")
+    cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script]
+    # no DETACHED_PROCESS: powershell dies without a console. Breakaway: survive a job that kills its children.
+    flags = NOWIN | subprocess.CREATE_NEW_PROCESS_GROUP
+    try:
+        subprocess.Popen(cmd, creationflags=flags | 0x01000000, close_fds=True)  # CREATE_BREAKAWAY_FROM_JOB
+    except OSError:
+        subprocess.Popen(cmd, creationflags=flags, close_fds=True)
     time.sleep(0.5)
     os._exit(0)
 
