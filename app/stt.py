@@ -72,7 +72,11 @@ def clean(text):
 
 
 def transcribe(data, mid, language=None):
-    audio = read_wav(data)
+    return transcribe_array(read_wav(data), mid, language)
+
+
+def transcribe_array(audio, mid, language=None):
+    """float32 mono 16 kHz -> text (also used for attached audio and video files)."""
     if len(audio) < 16000 * 0.3 or float(np.abs(audio).max()) < 0.01:
         return ""  # too short or silent: Whisper would make up text
     with _lock:

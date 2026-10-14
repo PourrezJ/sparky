@@ -29,6 +29,7 @@ everything runs on your own PC. Nothing is sent to the internet.</p>
 - **Code & apps panel** — ask for a game, a web page, a tool or a script: it is written live in a panel next to the chat, with a **running preview**, the code, versions, copy and download.
 - **Multi-file projects** — "build me a mini project": a website with `index.html` + `css/` + `js/`, or a Python program split in modules. Files are written one by one, the preview serves the whole project, the assistant can **generate the pictures** of a website itself (hero banner, products…) and put them in the project, and when it is done Sparky **tests the project automatically** — website opened in a headless browser (JavaScript errors, missing files, broken layout, every button clicked), Python and Node.js programs executed (`npm install` included) — and the model **fixes the errors until it works**. **▶ Run** re-runs it anytime, and the project downloads as a ZIP. Node.js is installed automatically (portable).
 - **Images** — generate and edit pictures by simply asking ("make it snow", "remove the bottle"). The agent checks its own result and retries when needed.
+- **Attach any file** — click **+** or drag and drop: PDF, Word, PowerPoint, Excel, text and code files are read, audio and video are transcribed offline by Whisper, and everything is given to the assistant as context. Each file shows a preview card (*Added as context!*).
 - **Vision** — drop photos, screenshots or scanned documents: the assistant sees and analyses them.
 - **Sparky Bot (beta)** — a companion that remembers you, learns your style and grows with you, with a memory you can see and edit ([details](#-sparky-bot--personal-companion-with-memory-beta-in-progress)).
 - **Voice dictation, offline** — click the mic, talk, stop: Whisper turns your voice into text right in the input box.
@@ -205,6 +206,7 @@ app/
   harness.py    agent: assistant <-> image tools loop, artifacts
   catalog.py    catalog, downloads, indicators
   syscheck.py   system scan and recommendations
+  attach.py     attached files -> text (PDF, Office, code, audio/video transcription)
   localscan.py  finds the models already on the PC (LM Studio, Ollama, Hugging Face...)
   updater.py    version check and one-click update (git pull)
   stt.py        offline voice dictation (Whisper)
@@ -213,6 +215,7 @@ app/
   index.html    interface (English / French)
 install.ps1     step-by-step installer
 VERSION         current version
+requirements.txt  Sparky's own Python packages
 start.ps1 / stop.ps1
 docs/           screenshots and demos
 ```

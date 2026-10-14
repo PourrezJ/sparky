@@ -1020,7 +1020,7 @@ class Session:
         return new, crops
 
     # -- one conversation turn
-    def turn(self, text, uploads, mask, mask_for, emit):
+    def turn(self, text, uploads, mask, mask_for, emit, files=()):
         def ev(e):
             e.setdefault("ts", time.time())
             self.events.append(e)
@@ -1039,8 +1039,16 @@ class Session:
                 note += f"\n[L'utilisateur a peint une zone sur l'image #{mask_for} : pour la modifier, edit avec region \"mask\".]"
             if ids:
                 note += "\n[Images jointes : " + ", ".join(f"#{i}" for i in ids) + "]"
-            self.history.append({"role": "user", "text": (text or "(images)") + note, "images": ids})
-            ev({"type": "user", "text": text, "images": ids, "maskFor": mask_for if mask is not None else None})
+            budget = 60000  # attached files (text, PDF, Office, audio transcripts): context shared by all of them
+            for f in files:
+                body = f["text"][:max(0, budget)]
+                budget -= len(body)
+                cut = f["truncated"] or len(body) < len(f["text"])
+                note += (f"\n[Fichier joint : {f['name']}" + (" (extrait : fichier trop long)" if cut else "")
+                         + "]\n<<<\n" + body + "\n>>>")
+            self.history.append({"role": "user", "text": (text or ("(fichiers)" if files else "(images)")) + note, "images": ids})
+            ev({"type": "user", "text": text, "images": ids, "maskFor": mask_for if mask is not None else None,
+                "files": [{"name": f["name"], "kind": f["kind"], "size": f["size"]} for f in files]})
             try:
                 max_steps, last_sig, nudges, tools_used = int(SETTINGS["max_steps"]), None, 0, False
                 past_replies = {e["text"].strip() for e in self.events if e.get("type") == "reply"}

@@ -9,6 +9,7 @@ import http.server, socketserver
 import psutil
 from PIL import Image
 
+import attach
 import catalog
 import config
 import harness
@@ -370,6 +371,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                    "job": catalog.jobs.get(m["id"])})
         if path == "/api/localscan":  # models already on this PC (LM Studio, Ollama...)
             return self.send(200, localscan.status())
+        if path == "/api/attach":  # reading state of an attached file
+            st = attach.status(q.get("id", ""))
+            return self.send(200 if st else 404, st or {"error": "fichier inconnu"})
         if path == "/api/version":
             return self.send(200, updater.status())
         if path == "/api/switch":
@@ -434,6 +438,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, {"ok": True})
         if self.path == "/api/use":
             return self.send(200, {"ok": use_model(b.get("id"))})
+        if self.path == "/api/attach":  # {name, type, data: base64}: text read in the background
+            return self.send(200, attach.add(b.get("name", "fichier"), b.get("data", ""), b.get("type", "")))
         if self.path == "/api/localscan":
             localscan.start()
             return self.send(200, {"ok": True})
@@ -503,7 +509,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         uploads = [decode_image(u).convert("RGB") for u in b.get("images", [])]
         mask = decode_image(b["mask"]).convert("RGB") if b.get("mask") else None
-        s.turn(b.get("text", ""), uploads, mask, b.get("maskFor"), emit)
+        s.turn(b.get("text", ""), uploads, mask, b.get("maskFor"), emit, files=attach.take(b.get("files")))
 
 
     def stream(self):
@@ -599,5 +605,6 @@ if __name__ == "__main__":
             print(e)
         threading.Thread(target=autostart, daemon=True).start()
     updater.start()
+    attach.server_voice = voice_model
     print(f"Sparky {updater.current()} : http://127.0.0.1:{a.port}")
     Server(("127.0.0.1", a.port), Handler).serve_forever()

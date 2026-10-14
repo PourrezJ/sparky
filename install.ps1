@@ -287,7 +287,7 @@ function GetRepo([string]$label, [string]$url, [string]$dest, [string]$branch) {
 }
 GetRepo (T 'comfy') 'https://github.com/comfyanonymous/ComfyUI' $comfy 'master'
 GetRepo (T 'ipa') 'https://github.com/cubiq/ComfyUI_IPAdapter_plus' (Join-Path $comfy 'custom_nodes\ComfyUI_IPAdapter_plus') 'main'
-Run (T 'deps') $vpy @('-m', 'pip', 'install', '-r', (Join-Path $comfy 'requirements.txt'), 'psutil', 'pillow', 'websocket-client')
+Run (T 'deps') $vpy @('-m', 'pip', 'install', '-r', (Join-Path $comfy 'requirements.txt'), '-r', (Join-Path $Root 'requirements.txt'))
 
 # ------------------------------------------------------------------ 5. llama.cpp
 Step (T 's5')

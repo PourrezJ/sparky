@@ -1,0 +1,5 @@
+# Sparky own Python packages (ComfyUI has its own requirements.txt)
+psutil
+pillow
+websocket-client
+pypdf
