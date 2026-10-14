@@ -1,5 +1,5 @@
 """Read-aloud: markdown cleanup, voice choice, and a real synthesis when a voice and onnxruntime are available."""
-import io, os, shutil, wave
+import io, os, wave
 
 import pytest
 

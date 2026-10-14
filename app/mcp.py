@@ -193,7 +193,7 @@ class Server:
         try:
             r = urllib.request.urlopen(req, timeout=timeout)
         except urllib.error.HTTPError as e:
-            raise McpError(f"HTTP {e.code}: {e.read(300).decode('utf-8', 'replace')}")
+            raise McpError(f"HTTP {e.code}: {e.read(300).decode('utf-8', 'replace')}") from None
         with r:
             self.session = r.headers.get("Mcp-Session-Id") or self.session
             if r.status == 202:

@@ -36,7 +36,7 @@ def check_url(url):
     try:
         infos = socket.getaddrinfo(u.hostname, u.port or (443 if u.scheme == "https" else 80), proto=socket.IPPROTO_TCP)
     except (socket.gaierror, UnicodeError) as e:
-        raise ValueError(f"unknown host {u.hostname}: {e}")
+        raise ValueError(f"unknown host {u.hostname}: {e}") from None
     for info in infos:
         ip = ipaddress.ip_address(info[4][0].split("%")[0])
         if getattr(ip, "ipv4_mapped", None):
@@ -155,7 +155,7 @@ def search(query, n=6, searx_url=None):
         except (OSError, ValueError):
             pass   # instance down: fall back to the public engines
     out = []
-    for attempt in range(2):  # DuckDuckGo sometimes answers with an empty or partial page: one retry, then Bing
+    for _ in range(2):  # DuckDuckGo sometimes answers with an empty or partial page: one retry, then Bing
         try:
             html = _get("https://html.duckduckgo.com/html/", urllib.parse.urlencode({"q": query}).encode(),
                         {"Content-Type": "application/x-www-form-urlencoded", "Referer": "https://html.duckduckgo.com/"})
