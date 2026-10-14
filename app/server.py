@@ -17,8 +17,13 @@ import cloud
 import config
 import harness
 import localscan
+import mcp
+import openai_api
+import rag
+import scheduler
 import syscheck
 import updater
+import workspace
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
@@ -320,6 +325,27 @@ def run_project(s, pid, p):
     return {"code": r["code"], "output": r["output"] or "(aucune sortie)", "secs": r["secs"], "ok": r["ok"], "kind": r["kind"]}
 
 
+def apply_config(s, new):
+    if "assistant" in new:
+        s.config["assistant"] = new["assistant"] or None
+    if isinstance(new.get("system"), str):
+        s.config["system"] = new["system"][:8000]
+    if "docs" in new:
+        s.config["docs"] = [int(x) for x in new["docs"] or []]
+    if "web" in new:
+        s.config["web"] = bool(new["web"])
+
+
+def run_scheduled(prompt, title):
+    """Scheduled task: runs the prompt in a new conversation, returns its id."""
+    s = harness.Session()
+    s.meta["title"] = "⏰ " + title
+    sessions[s.id] = s
+    s.config["web"] = True  # tasks like "summarize today's news" need the web
+    s.turn(prompt, [], None, None, lambda e: None)
+    return s.id
+
+
 def decode_image(data_url):
     return Image.open(io.BytesIO(base64.b64decode(data_url.split(",", 1)[1])))
 
@@ -341,6 +367,11 @@ def update_settings(new):
         harness.SETTINGS["autotest"] = bool(new["autotest"])
     if new.get("ui_lang") in ("en", "fr"):
         harness.SETTINGS["ui_lang"] = new["ui_lang"]
+    for k in ("custom", "searx"):
+        if isinstance(new.get(k), str):
+            harness.SETTINGS[k] = new[k][:8000].strip()
+    if "mcp_on" in new:
+        harness.SETTINGS["mcp_on"] = bool(new["mcp_on"])
     harness.save_settings()
 
 
@@ -368,6 +399,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         (another website, or a generated project on the preview port) is a cross-site request."""
         if urlparse("//" + (self.headers.get("Host") or "")).hostname not in LOCAL_HOSTS:
             return False
+        if self.path.startswith("/v1/"):  # OpenAI-compatible API: protected by its bearer key (openai_api.py)
+            return True
         if self.command != "POST":
             return True
         origin = self.headers.get("Origin")
@@ -414,6 +447,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.trusted():
             return self.send(403, {"error": "requête refusée"})
         path = self.path.split("?")[0]
+        if path.startswith("/v1/") and self.server.server_address[1] == config.APP_PORT:
+            return openai_api.handle(self, path)
         fn = routes.get(path) or next((f for p, f in prefixes if path.startswith(p)), None)
         if not fn:
             return self.send(404, {"error": "introuvable"})
@@ -443,6 +478,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         with open(os.path.join(HERE, "index.html"), "rb") as f:
             self.send(200, f.read(), "text/html; charset=utf-8")
 
+    def vendor(self, path):  # Markdown libraries (tables, LaTeX, Mermaid, code colors), served locally
+        import mimetypes
+        name = path[len("/vendor/"):]
+        p = os.path.join(HERE, "vendor", *name.split("/"))
+        if not re.fullmatch(r"(fonts/)?[\w][\w.-]*", name) or not os.path.isfile(p):
+            return self.send(404, {"error": "introuvable"})
+        with open(p, "rb") as f:
+            self.send(200, f.read(), (mimetypes.guess_type(name)[0] or "application/octet-stream")
+                      + ("; charset=utf-8" if name.endswith((".js", ".css")) else ""), [("Cache-Control", "max-age=86400")])
+
     def logo(self, path):
         with open(os.path.join(HERE, "logo.png"), "rb") as f:
             self.send(200, f.read(), "image/png")
@@ -453,7 +498,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def state(self, path):
         s = get_session(self.query().get("id"))
-        self.send(200, {"id": s.id, "events": s.events} if s else {"id": None, "events": []})
+        self.send(200, {"id": s.id, "events": s.events, "turns": len(s.turns), "versions": s.versions(), "config": s.config,
+                        "meta": s.meta, "busy": s.lock.locked()} if s else {"id": None, "events": []})
 
     def image(self, path):  # /api/img/<session>/<n>
         try:
@@ -487,6 +533,70 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send(200, {"settings": harness.SETTINGS, "catalog": catalog.listing(harness.SETTINGS),
                         "otherCheckpoints": others, "active": {"llm": llm_state["name"], "voice": voice_model()[0]["id"]},
                         "syscheck": syscheck.current(), "onboarded": bool(harness.SETTINGS.get("onboarded"))})
+
+    def search_chats(self, path):  # full-text search in every conversation
+        q = (self.query().get("q") or "").strip().lower()
+        out = []
+        for row in harness.Session.list_all() if q else []:
+            try:
+                st = json.load(open(os.path.join(harness.DATA, row["id"], "session.json"), encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            hit = row["title"] if q in row["title"].lower() else None
+            for e in st.get("events", []):
+                if hit:
+                    break
+                t = e.get("text") or ""
+                if e.get("type") in ("user", "reply") and q in t.lower():
+                    i = t.lower().index(q)
+                    hit = ("…" if i > 40 else "") + t[max(0, i - 40):i + 80].replace("\n", " ")
+            if hit:
+                out.append(row | {"snippet": hit})
+            if len(out) >= 40:
+                break
+        self.send(200, out)
+
+    def export(self, path):  # one conversation as JSON (with its images) or Markdown
+        q = self.query()
+        s = get_session(q.get("id"))
+        if not s:
+            return self.send(404, {"error": "conversation inconnue"})
+        title = s.meta.get("title") or s.title()
+        name = re.sub(r"[^\w-]+", "_", title)[:50] or "conversation"
+        if q.get("fmt") == "md":
+            lines = [f"# {title}\n"]
+            for e in s.events:
+                if e.get("type") == "user" and not e.get("hidden"):
+                    lines.append(f"## 🧑 {e.get('text') or ''}\n" + "".join(f"\n![image {i}](image-{i}.png)" for i in e.get("images") or []))
+                elif e.get("type") == "reply":
+                    lines.append(f"**Sparky** :\n\n{e['text']}\n")
+                elif e.get("type") == "image":
+                    lines.append(f"![image {e['id']}](image-{e['id']}.png)\n")
+            return self.send(200, "\n".join(lines).encode(), "text/markdown; charset=utf-8",
+                             [("Content-Disposition", f'attachment; filename="{name}.md"')])
+        imgs = {}
+        for i, v in s.images.items():
+            try:
+                imgs[i] = base64.b64encode(open(v["path"], "rb").read()).decode()
+            except OSError:
+                pass
+        st = {k: getattr(s, k) for k in ("history", "events", "n", "lang", "artifacts", "projects", "config", "meta", "turns")}
+        st |= {"format": "sparky-chat", "version": 1, "title": title,
+               "images": {i: {k: v for k, v in s.images[i].items() if k != "path"} | {"png": b} for i, b in imgs.items()}}
+        self.send(200, json.dumps(st, ensure_ascii=False).encode(), "application/json",
+                  [("Content-Disposition", f'attachment; filename="{name}.json"')])
+
+    def workspace_get(self, path):
+        d = workspace.get()
+        self.send(200, d | {"knowledge": rag.collections(), "mcp": {"config": mcp.load(), "status": mcp.status()},
+                            "api": openai_api.settings() | {"url": f"http://127.0.0.1:{config.APP_PORT}/v1",
+                                                             "model": llm_state["name"]},
+                            "schedules": scheduler.list_(), "unread": scheduler.unread(),
+                            "settings": {k: harness.SETTINGS.get(k) for k in ("custom", "searx", "mcp_on")}})
+
+    def tts_status(self, path):
+        import tts
+        self.send(200, tts.status())
 
     def bot_state(self, path):
         import companion
@@ -535,6 +645,172 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send(200, {"text": text})
         except Exception as e:
             self.send(500, {"error": f"transcription impossible : {e}"})
+
+    def import_chat(self, path):  # a conversation exported by Sparky (JSON), or a plain [{role, content}] list
+        b = self.body()
+        d = b.get("data")
+        s = harness.Session()
+        if isinstance(d, list):
+            d = {"messages": d}
+        if not isinstance(d, dict):
+            return self.send(400, {"error": "fichier non reconnu"})
+        if d.get("format") == "sparky-chat":
+            os.makedirs(s.dir, exist_ok=True)
+            for i, v in (d.get("images") or {}).items():
+                p = os.path.join(s.dir, f"import_{int(i)}.png")
+                with open(p, "wb") as f:
+                    f.write(base64.b64decode(v.pop("png", "")))
+                s.images[int(i)] = v | {"path": p}
+            for k in ("history", "events", "n", "lang", "artifacts", "projects", "config", "meta"):
+                if k in d:
+                    setattr(s, k, d[k] if k not in ("config", "meta") else getattr(s, k) | d[k])
+            s.turns = [tuple(x) for x in d.get("turns", [])]
+        else:
+            msgs = d.get("messages") or []
+            for m in msgs:
+                role, text = m.get("role"), m.get("content")
+                if isinstance(text, list):
+                    text = " ".join(x.get("text", "") for x in text if isinstance(x, dict))
+                if role == "user":
+                    s.turns.append((len(s.history), len(s.events)))
+                    s.history.append({"role": "user", "text": text or "", "images": [], "raw": text or ""})
+                    s.events.append({"type": "user", "text": text or "", "ts": time.time()})
+                elif role == "assistant":
+                    s.history.append({"role": "assistant", "text": json.dumps({"action": "reply", "args": {"text": text}}, ensure_ascii=False)})
+                    s.events.append({"type": "reply", "text": text or "", "ts": time.time()})
+            if not s.events:
+                return self.send(400, {"error": "aucun message trouvé"})
+            s.meta["title"] = (d.get("title") or "")[:60] or None
+        s.meta["title"] = s.meta.get("title") or ("Importé : " + s.title())
+        sessions[s.id] = s
+        s.save()
+        self.send(200, {"id": s.id})
+
+    def chat_meta(self, path):  # rename, pin, folder
+        b = self.body()
+        s = get_session(b.get("id"))
+        if not s:
+            return self.send(404, {"error": "conversation inconnue"})
+        for k in ("title", "folder"):
+            if k in b:
+                s.meta[k] = (str(b[k]).strip()[:80] or None) if b[k] is not None else None
+        if "pinned" in b:
+            s.meta["pinned"] = bool(b["pinned"])
+        s.save()
+        self.send(200, {"ok": True})
+
+    def chat_config(self, path):  # assistant, own instructions, knowledge, web access of one conversation
+        b = self.body()
+        s = get_session(b.get("id"))
+        if not s:
+            return self.send(404, {"error": "conversation inconnue"})
+        apply_config(s, b.get("config") or {})
+        s.save()
+        self.send(200, {"ok": True, "config": s.config})
+
+    def version(self, path):  # shows another version of a message (after edit / regenerate)
+        b = self.body()
+        s = get_session(b.get("id"))
+        if not s or s.lock.locked():
+            return self.send(409, {"error": "conversation occupée"})
+        with s.lock:
+            s.switch_version(int(b["k"]), int(b["j"]))
+        self.send(200, {"ok": True})
+
+    def redo(self, path):
+        """Edit a message (text) or regenerate an answer (no text) or continue the last answer: streamed like /api/chat."""
+        b = self.body()
+        s = get_session(b.get("id"))
+        if not s:
+            return self.send(404, {"error": "conversation inconnue"})
+        emit = self.stream()
+        emit({"type": "ack", "id": s.id, "busy": s.lock.locked()})
+        if not llm_state["name"]:
+            emit({"type": "error", "text": NO_ASSISTANT})
+            emit({"type": "done"})
+            return
+        if b.get("mode") == "continue":
+            return s.turn("", [], None, None, emit, kind="continue")
+        k = int(b.get("k", len(s.turns) - 1))
+        s.turn(b.get("text") if b.get("mode") == "edit" else None, [], None, None, emit, rewind=k)
+
+    def workspace_save(self, path):
+        """Assistants, prompts, knowledge, MCP servers, API, scheduled tasks: {what, action, ...}."""
+        b = self.body()
+        what, act = b.get("what"), b.get("action", "save")
+        try:
+            if what in ("assistants", "prompts"):
+                if act == "delete":
+                    workspace.delete(what, b.get("id"))
+                    return self.send(200, {"ok": True})
+                return self.send(200, {"id": workspace.save(what, b.get("item") or {})})
+            if what == "collection":
+                if act == "delete":
+                    rag.delete_collection(int(b["id"]))
+                elif act == "rename":
+                    rag.rename_collection(int(b["id"]), b.get("name", ""))
+                else:
+                    return self.send(200, {"id": rag.create_collection(b.get("name") or "Documents")})
+                return self.send(200, {"ok": True})
+            if what == "document":
+                if act == "delete":
+                    rag.delete_document(int(b["id"]))
+                    return self.send(200, {"ok": True})
+                data = base64.b64decode((b.get("data") or "").split(",")[-1])
+                return self.send(200, {"id": rag.add_document(int(b["collection"]), b.get("name") or "document", data, b.get("type", ""))})
+            if what == "mcp":
+                if act == "restart":
+                    mcp.restart(b.get("name"))
+                else:
+                    cfg = b.get("config")
+                    if isinstance(cfg, str):
+                        cfg = json.loads(cfg or "{}")
+                    if not isinstance(cfg, dict):
+                        raise ValueError("configuration invalide")
+                    mcp.save(cfg if "mcpServers" in cfg else {"mcpServers": cfg})
+                    threading.Thread(target=mcp.start_all, daemon=True).start()
+                return self.send(200, {"ok": True})
+            if what == "api":
+                if act == "key":
+                    openai_api.regenerate_key()
+                else:
+                    openai_api.set_enabled(bool(b.get("enabled")))
+                return self.send(200, openai_api.settings())
+            if what == "schedule":
+                if act == "delete":
+                    scheduler.delete(b.get("id"))
+                elif act == "run":
+                    scheduler.run_now(b.get("id"))
+                elif act == "read":
+                    scheduler.mark_read(b.get("id"))
+                else:
+                    return self.send(200, {"id": scheduler.save_task(b.get("item") or {})["id"]})
+                return self.send(200, {"ok": True})
+        except (ValueError, KeyError, TypeError) as e:
+            return self.send(400, {"error": str(e)})
+        self.send(404, {"error": "introuvable"})
+
+    def tts_speak(self, path):
+        import tts
+        b = self.body()
+        st = tts.status()
+        if not st.get("installed"):
+            return self.send(409, {"error": "lecture vocale non installée"})
+        text = b.get("text", "")[:20000]
+        vid = tts.pick_voice(tts.norm_lang(b.get("lang")) or tts.guess_lang(text), b.get("voice"))
+        if not tts.ready(vid):  # first use of this language: its voice (~60 MB) is downloaded
+            tts.install(vid)
+            return self.send(409, {"error": "voix en cours de téléchargement", "voice": vid, "job": tts.jobs.get(vid)})
+        try:
+            wav = tts.speak(text, None, vid, float(b.get("speed") or 1.0))
+        except Exception as e:
+            return self.send(409, {"error": str(e)})
+        self.send(200, wav, "audio/wav")
+
+    def tts_install(self, path):
+        import tts
+        tts.install(self.body().get("voice"))
+        self.send(200, {"ok": True})
 
     def new_session(self, path):
         s = harness.Session(ephemeral=bool(self.body().get("ephemeral")))
@@ -652,6 +928,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if s is None:  # unknown id (e.g. after a restart): a private chat must stay private
             s = harness.Session(ephemeral=bool(b.get("ephemeral")))
             sessions[s.id] = s
+        if isinstance(b.get("config"), dict):  # setup chosen before the first message (assistant, web, documents)
+            apply_config(s, b["config"])
         emit = self.stream()
         emit({"type": "ack", "id": s.id, "busy": s.lock.locked()})  # received by the server
         if not llm_state["name"]:
@@ -709,15 +987,19 @@ GET = {"/": Handler.page, "/index.html": Handler.page, "/logo.png": Handler.logo
        "/api/bot": Handler.bot_state, "/api/voice": Handler.voice, "/api/localscan": _json(localscan.status),
        "/api/attach": Handler.attach_status, "/api/cloud": _json(cloud.status), "/api/cloud/models": Handler.cloud_models,
        "/api/version": _json(updater.status), "/api/switch": Handler.switch_state,
-       "/api/hf/search": Handler.hf, "/api/hf/files": Handler.hf}
-GET_PREFIX = [("/api/img/", Handler.image)]
+       "/api/hf/search": Handler.hf, "/api/hf/files": Handler.hf, "/api/search": Handler.search_chats,
+       "/api/export": Handler.export, "/api/workspace": Handler.workspace_get, "/api/tts": Handler.tts_status}
+GET_PREFIX = [("/api/img/", Handler.image), ("/vendor/", Handler.vendor)]
 POST = {"/api/new": Handler.new_session, "/api/delete": Handler.delete_session, "/api/install": Handler.install,
         "/api/syscheck": Handler.rescan, "/api/projrun": Handler.projrun, "/api/onboarded": Handler.onboarded,
         "/api/use": Handler.use, "/api/attach": Handler.attach_add, "/api/cloud/key": Handler.cloud_key,
         "/api/cloud/remove": Handler.cloud_remove, "/api/cloud/add": Handler.cloud_add,
         "/api/localscan": Handler.localscan_start, "/api/localscan/use": Handler.localscan_use,
         "/api/version/check": Handler.version_check, "/api/update": Handler.update, "/api/hf/install": Handler.hf_install,
-        "/api/model/delete": Handler.model_delete, "/api/settings": Handler.save_settings, "/api/chat": Handler.chat}
+        "/api/model/delete": Handler.model_delete, "/api/settings": Handler.save_settings, "/api/chat": Handler.chat,
+        "/api/import": Handler.import_chat, "/api/meta": Handler.chat_meta, "/api/config": Handler.chat_config,
+        "/api/version/switch": Handler.version, "/api/redo": Handler.redo, "/api/workspace": Handler.workspace_save,
+        "/api/tts": Handler.tts_speak, "/api/tts/install": Handler.tts_install}
 POST_PREFIX = [("/api/transcribe", Handler.transcribe), ("/api/bot/", Handler.bot)]
 
 
@@ -790,6 +1072,9 @@ def main():
         threading.Thread(target=autostart, daemon=True).start()
     updater.start()
     attach.server_voice = voice_model
+    openai_api.active_model = lambda: (llm_state["name"], LLMS[llm_state["name"]]["label"]) if llm_state["name"] in LLMS else None
+    threading.Thread(target=mcp.start_all, daemon=True).start()
+    scheduler.start(run_scheduled)
     preview = Server(("127.0.0.1", config.PREVIEW_PORT), PreviewHandler)
     threading.Thread(target=preview.serve_forever, daemon=True).start()
     print(f"Sparky {updater.current()} : http://127.0.0.1:{a.port}")

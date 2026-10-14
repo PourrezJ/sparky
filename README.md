@@ -8,8 +8,8 @@
 <h1 align="center">Sparky</h1>
 
 <p align="center"><b>Your private AI assistant. 100% local.</b><br>
-Chat, see images, generate and edit pictures, build apps and dictate by voice —<br>
-everything runs on your own PC. Nothing is sent to the internet.</p>
+Chat, see images, generate and edit pictures, build apps, ask your documents, dictate and listen —<br>
+everything runs on your own PC. Nothing is sent to the internet unless you turn it on.</p>
 
 <p align="center">
   <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6">
@@ -25,7 +25,17 @@ everything runs on your own PC. Nothing is sent to the internet.</p>
 
 ## What it does
 
-- **Chat like ChatGPT, offline** — conversation history, plus **temporary chats** that are never saved.
+- **Chat like ChatGPT, offline** — conversation history, plus **temporary chats** that are never saved. **Edit** any of your messages, **regenerate** or **continue** an answer, and flip between the versions (‹ 2/3 ›).
+- **Ask your documents (RAG)** — drop PDFs, Word, Excel, PowerPoint, text or code files into a collection: Sparky splits and indexes them on your PC (multilingual embeddings), then answers from them and **cites its sources** [1] [2].
+- **Web search, when you want it** — turn on *Web* under the message box: the assistant searches (DuckDuckGo, or your own SearXNG), reads the pages and the links you paste, and cites them. Off by default.
+- **Assistants & prompt library** — save assistants (a role, their documents, web access) and reusable prompts you insert with **/**, plus standing instructions for every chat or for one conversation.
+- **Rich answers** — tables, LaTeX formulas, Mermaid diagrams, task lists and syntax-highlighted code, all rendered offline.
+- **Organize your chats** — full-text search, rename, pin, folders, export (JSON / Markdown) and import.
+- **Read aloud** — 🔊 on any answer: offline Piper voices (English, French, German, Spanish, Italian).
+- **Tools (MCP)** — plug any Model Context Protocol server (same config as Claude Desktop: files, GitHub, databases…) and the assistant uses its tools.
+- **Scheduled tasks** — "every morning at 8, summarize the tech news": Sparky runs the prompt and files the answer in a new chat.
+- **OpenAI-compatible API** — use Sparky's model from other apps (Continue, VS Code extensions, scripts) at `http://127.0.0.1:7860/v1`, with a key. Off by default.
+- **Light or dark** — follows Windows, or choose in the settings.
 - **Code & apps panel** — ask for a game, a web page, a tool or a script: it is written live in a panel next to the chat, with a **running preview**, the code, versions, copy and download.
 - **Multi-file projects** — "build me a mini project": a website with `index.html` + `css/` + `js/`, or a Python program split in modules. Files are written one by one, the preview serves the whole project, the assistant can **generate the pictures** of a website itself (hero banner, products…) and put them in the project, and when it is done Sparky **tests the project automatically** — website opened in a headless browser (JavaScript errors, missing files, broken layout, every button clicked), Python and Node.js programs executed (`npm install` included) — and the model **fixes the errors until it works**. **▶ Run** re-runs it anytime, and the project downloads as a ZIP. Node.js is installed automatically (portable).
 - **Images** — generate and edit pictures by simply asking ("make it snow", "remove the bottle"). The agent checks its own result and retries when needed.
@@ -41,7 +51,34 @@ everything runs on your own PC. Nothing is sent to the internet.</p>
 - **Only official models** — Qwen, Gemma, gpt-oss, Nemotron, FLUX.2, Whisper… "uncensored", "abliterated" or NSFW variants are excluded from the catalog and from the Hugging Face search.
 - **English or French** — chosen during install, switchable in the settings.
 
+## Everything Sparky supports
+
+| Area | Supported |
+|---|---|
+| **Chat** | streaming answers · visible reasoning with 4 thinking levels · edit a sent message · regenerate · continue · answer versions (‹ 2/3 ›) · copy · read aloud · temporary chats · English / French UI · light / dark / auto theme |
+| **Conversations** | history · full-text search · rename · pin · folders · export JSON (with images) or Markdown · import (Sparky JSON or `[{role, content}]`) |
+| **Setup of a chat** | assistant presets (role, documents, web) · per-chat instructions (system prompt) · standing instructions for every chat · prompt library with `/commands` and `{{variables}}` |
+| **Documents (RAG)** | collections · PDF (with page numbers), Word, PowerPoint, Excel, OpenDocument, text, Markdown, CSV, JSON, code, audio and video (transcribed) · local multilingual embeddings (`multilingual-e5-small`) + keyword search · numbered citations with the source passages |
+| **Web** | search (DuckDuckGo / Bing, or your SearXNG) · reads pages and pasted links (HTML, PDF, text) · citations · private addresses blocked · off by default, per chat |
+| **Files in a message** | images (vision), PDF, Office, text and code, audio and video (offline Whisper transcription) · drag and drop, paste |
+| **Images** | generate and edit by instruction (FLUX.2 Klein, Qwen-Image 2.1, SDXL) · paint a zone to edit · reuse a face, character, style or scene · the agent checks its result and retries |
+| **Code & projects** | artifacts panel with live preview, code, versions, download · multi-file projects (web, Python, Node.js) · automatic test-and-fix loop (headless browser, Python, `npm install` / build / test) · ▶ Run · ZIP download · generated pictures inside projects |
+| **Markdown** | GFM tables · task lists · LaTeX (KaTeX) · Mermaid diagrams · syntax highlighting · citations · served locally (no CDN) |
+| **Voice** | offline dictation (Whisper large-v3 turbo / base) with live level bars · offline read-aloud (Piper voices: en, fr, de, es, it) |
+| **Tools** | MCP servers over stdio (`command` / `args` / `env`) or Streamable HTTP (`url` / `headers`), Claude Desktop config format |
+| **Automation** | scheduled tasks: daily, weekly, every N minutes, once · results filed in a new chat with an unread badge |
+| **API** | OpenAI-compatible `/v1/models`, `/v1/chat/completions` (streaming or not), `/v1/embeddings` · bearer key · off by default · local only |
+| **Models** | local GGUF assistants (llama.cpp: CUDA x64 / ARM64, or CPU) · catalog with speed / quality / memory for your PC · models already on your PC (LM Studio, Ollama, Hugging Face cache…) · Hugging Face search · optional cloud models (OpenRouter, Claude, OpenAI, Gemini, Mistral, Groq, DeepSeek, xAI, any OpenAI-compatible server) · only official, non-NSFW models |
+| **Sparky Bot (beta)** | companion with long-term, editable memory · style profile · journal · relationship level |
+| **Install & updates** | step-by-step installer · system scan with recommended models · one-click updates |
+
 ## Screenshots
+
+| | |
+|---|---|
+| <img src="docs/knowledge-chat.png" alt="Answers from your documents with citations"><br>**Documents** — answers from your files, with numbered sources | <img src="docs/markdown.png" alt="Tables, formulas and diagrams"><br>**Rich answers** — tables, LaTeX, Mermaid, versions of an answer |
+| <img src="docs/workspace-documents.png" alt="Workspace: document collections"><br>**Workspace** — document collections indexed on your PC | <img src="docs/workspace-assistants.png" alt="Workspace: assistants"><br>**Assistants** — a role, documents and web access, reusable |
+| <img src="docs/workspace-tools.png" alt="MCP tools"><br>**Tools (MCP)** — plug any MCP server | <img src="docs/prompts.png" alt="Prompt library"><br>**Prompt library** — type / to insert a saved prompt |
 
 | | |
 |---|---|
@@ -81,7 +118,7 @@ Sparky Bot is a friend-like companion that **remembers you, learns your style an
 - [x] Persistent memory with add / update / forget, guard-rails and semantic search
 - [x] Style profile, journal, follow-ups, relationship level, 4 personalities
 - [x] Animated avatar, bilingual UI (English / French)
-- [ ] Voice conversations (Whisper in, local text-to-speech out)
+- [ ] Voice conversations (Whisper in, local text-to-speech out; read-aloud already works in the main chat)
 - [ ] Proactive check-ins (optional notifications)
 - [ ] Memory import / export, per-memory "why do you know this?" with the source message
 - [ ] Larger evaluation set for the memory engine across models
@@ -199,9 +236,32 @@ Sparky is 100% local by default. If you want, *Settings > Cloud models* lets you
 
 ## Privacy
 
-Everything runs on your machine: conversations, images and models stay in the install folder (`data\`, `models\`). The only outgoing connections download the tools and models (GitHub, PyPI, Hugging Face), search the model library, check for updates (the `VERSION` file on GitHub), and — only if you add one — talk to a cloud provider.
+Everything runs on your machine: conversations, documents, images and models stay in the install folder (`data\`, `models\`). The only outgoing connections download the tools and models (GitHub, PyPI, Hugging Face, the Piper voices), search the model library, check for updates (the `VERSION` file on GitHub), and — only when you turn them on — search the web and read pages (*Web* chip of a chat, scheduled tasks), run MCP tools that reach the internet, or talk to a cloud provider.
 
-The local API only answers the Sparky page itself: requests from other websites (cross-site or DNS rebinding) are refused, and the projects the assistant writes run on their own origin (port 7861), so their code cannot drive Sparky.
+The local API only answers the Sparky page itself: requests from other websites (cross-site or DNS rebinding) are refused, and the projects the assistant writes run on their own origin (port 7861), so their code cannot drive Sparky. The OpenAI-compatible API (`/v1`) is off by default; when on, it requires its key and still only listens on `127.0.0.1`. Web reading refuses private and local addresses.
+
+## OpenAI-compatible API
+
+Turn it on in *Workspace > API*, then point any OpenAI client at Sparky's active model:
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://127.0.0.1:7860/v1", api_key="sk-sparky-...")  # key shown in Workspace > API
+print(client.chat.completions.create(model="sparky", messages=[{"role": "user", "content": "Hello!"}]).choices[0].message.content)
+```
+
+## MCP tools
+
+*Workspace > Tools (MCP)* takes the same JSON as Claude Desktop, for example:
+
+```json
+{"mcpServers": {
+  "files":  {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\me\\Documents"]},
+  "remote": {"url": "https://example.com/mcp", "headers": {"Authorization": "Bearer ..."}}
+}}
+```
+
+Servers start with Sparky (the bundled Node.js provides `npx`); their tools are offered to the assistant in every chat.
 
 ## Development
 
@@ -233,6 +293,14 @@ app/
   cloud.py      optional cloud providers (OpenRouter, Claude, OpenAI-compatible...)
   checker.py    automatic project tests (headless browser, Python, Node.js)
   stt.py        offline voice dictation (Whisper)
+  tts.py        offline read-aloud (Piper voices through onnxruntime + espeak-ng)
+  rag.py        document collections: extraction, chunking, embeddings, search with citations
+  web.py        web search and page reading (DuckDuckGo / Bing / SearXNG), private addresses blocked
+  mcp.py        Model Context Protocol client (stdio and Streamable HTTP)
+  workspace.py  assistants and prompt library
+  scheduler.py  scheduled tasks
+  openai_api.py OpenAI-compatible API (/v1)
+  vendor/       Markdown libraries served locally (marked, DOMPurify, KaTeX, highlight.js, Mermaid)
   companion.py  Sparky Bot: persona, learning, reflection, journal (beta)
   memory.py     Sparky Bot memory: SQLite store + hybrid semantic retrieval
   index.html    interface (English / French)

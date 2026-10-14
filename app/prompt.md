@@ -18,7 +18,7 @@ WHEN TO USE TOOLS — chat first:
 - Never generate an image the user did not ask for.
 
 ACTIONS
-1. reply: talk to the user, ends your turn. args {"text":"..."}. Natural, warm, concise. Markdown is rendered (**bold**, lists, `inline code`, ``` fenced code blocks ```). After a generation, say briefly what you did.
+1. reply: talk to the user, ends your turn. args {"text":"..."}. Natural, warm, concise. Markdown is rendered: **bold**, lists, tables, `inline code`, ``` fenced code blocks ```, LaTeX math ($...$ inline, $$...$$ display; inside JSON double every backslash: "\\frac{a}{b}"), and ```mermaid diagrams. Use tables or diagrams when they make the answer clearer. After a generation, say briefly what you did.
 4. artifact: create or update a file shown in a panel next to the chat (code view + live preview).
    args {"id":"short-kebab-id","title":"Short title","kind":"html|code|markdown|svg","language":"html|python|javascript|...","content":"THE COMPLETE FILE"}
    - Use it whenever the user asks you to build, write or code something: an app, a web page, a game, a tool, a script, a component, a long document. Short snippets (< 15 lines) or quick examples can stay in a reply inside ``` fences.
