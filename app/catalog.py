@@ -240,31 +240,101 @@ def _install(mid):
     try:
         files = [(r, f, l, remote_size(r, f)) for r, f, l in filter(None, m["files"])]
         job["total"] = sum(s for *_, s in files)
-        base = 0
-        for repo, file, local, size in files:
-            if os.path.exists(local) and os.path.getsize(local) >= size:
-                base += size
-                continue
-            os.makedirs(os.path.dirname(local), exist_ok=True)
-            part = local + ".part"
-            for _ in range(60):  # automatic resume after interruptions
-                p = subprocess.Popen(["curl.exe" if os.name == "nt" else "curl", "-L", "--fail", "-s", "-C", "-",
-                                      "--retry", "10", "--retry-delay", "3", "--retry-all-errors", "-o", part,
-                                      HF.format(repo=repo, file=file)], creationflags=NOWIN)
-                while p.poll() is None:
-                    job["done"] = base + (os.path.getsize(part) if os.path.exists(part) else 0)
-                    time.sleep(1)
-                if os.path.exists(part) and os.path.getsize(part) >= size:
-                    break
-                time.sleep(3)
-            if not os.path.exists(part) or os.path.getsize(part) < size:
-                raise RuntimeError("téléchargement incomplet : " + file)
-            os.replace(part, local)
-            base += size
-            job["done"] = base
+        prog, errors = {}, []
+
+        def one(repo, file, local, size):  # each file of the model downloads at the same time
+            try:
+                if os.path.exists(local) and os.path.getsize(local) >= size:
+                    prog[local] = size
+                    return
+                os.makedirs(os.path.dirname(local), exist_ok=True)
+                fetch(HF.format(repo=repo, file=file), local + ".part", size, lambda n: prog.__setitem__(local, n))
+                os.replace(local + ".part", local)
+                prog[local] = size
+            except Exception as e:
+                errors.append(f"{file} : {e}")
+
+        threads = [threading.Thread(target=one, args=f, daemon=True) for f in files]
+        for t in threads:
+            t.start()
+        while any(t.is_alive() for t in threads):
+            job["done"] = sum(prog.values())
+            time.sleep(1)
+        job["done"] = sum(prog.values())
+        if errors:
+            raise RuntimeError(errors[0])
         job["state"] = "ok"
     except Exception as e:
         job.update(state="error", error=str(e))
+
+
+SEGMENT_MIN = 512 * 2**20  # files above this size download in parallel segments (one connection is often throttled)
+SEGMENTS = 6
+
+
+def _get_range(url, path, start, end, progress):
+    """Appends bytes start..end (inclusive) of url to path; resumes from what path already holds."""
+    for attempt in range(60):
+        have = os.path.getsize(path) if os.path.exists(path) else 0
+        if start + have > end:
+            return
+        req = urllib.request.Request(url, headers={"Range": f"bytes={start + have}-{end}", "User-Agent": "Sparky"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r, open(path, "ab") as f:
+                if r.status != 206:
+                    raise RuntimeError("le serveur ignore les plages d'octets")
+                while chunk := r.read(1 << 20):
+                    f.write(chunk)
+                    progress()
+        except (OSError, urllib.error.URLError):
+            time.sleep(min(30, 2 + attempt * 2))
+    if os.path.getsize(path) < end - start + 1:
+        raise RuntimeError("téléchargement interrompu")
+
+
+def fetch(url, part, size, report):
+    """Downloads url into part (resumable). Big files: SEGMENTS parallel ranges, joined at the end;
+    an existing single-stream part is kept as the first segment."""
+    if size < SEGMENT_MIN:
+        _get_range(url, part, 0, size - 1, lambda: report(os.path.getsize(part)))
+        return
+    plan_file = part + ".segs.json"
+    plan = config.read_json(plan_file)
+    if not plan:
+        p0 = os.path.getsize(part) if os.path.exists(part) else 0
+        step = (size - p0) // SEGMENTS
+        cuts = [0] + [p0 + step * i for i in range(1, SEGMENTS)] + [size]
+        plan = [[cuts[i], cuts[i + 1] - 1] for i in range(SEGMENTS)]
+        config.write_json(plan_file, plan)
+    paths = [part] + [f"{part}.{i}" for i in range(1, len(plan))]
+    lock = threading.Lock()
+
+    def total():
+        with lock:
+            report(sum(os.path.getsize(p) for p in paths if os.path.exists(p)))
+    errs = []
+
+    def seg(i):
+        try:
+            _get_range(url, paths[i], plan[i][0], plan[i][1], total)
+        except Exception as e:
+            errs.append(e)
+    ts = [threading.Thread(target=seg, args=(i,), daemon=True) for i in range(len(plan))]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    if errs:
+        raise errs[0]
+    with open(part, "ab") as out:  # join the segments after the first one
+        for p in paths[1:]:
+            with open(p, "rb") as f:
+                while chunk := f.read(16 << 20):
+                    out.write(chunk)
+    for p in paths[1:] + [plan_file]:
+        os.remove(p)
+    if os.path.getsize(part) != size:
+        raise RuntimeError(f"taille incorrecte ({os.path.getsize(part)} au lieu de {size})")
 
 
 _jobs_lock = threading.Lock()

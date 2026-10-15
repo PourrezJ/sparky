@@ -271,16 +271,32 @@ def est_seconds(job):
     return 20 + per_sec * job["seconds"]
 
 
+def _enhance_job(j):
+    """Detailed prompt, made once per job: started at submit time (the assistant may be paused later for a video)."""
+    if not (j.get("enhance") and j["prompt"]) or "final_prompt" in j:
+        return
+    if j.get("enhancing"):  # already being written by the submit thread
+        while "final_prompt" not in j and j.get("enhancing"):
+            time.sleep(0.3)
+        return
+    j["enhancing"] = True
+    try:
+        j["final_prompt"] = enhance(j["prompt"], j["mode"], bool(j.get("source")))
+    finally:
+        j["enhancing"] = False
+
+
 def _run(job):
     mid = uuid.uuid4().hex[:10]
     os.makedirs(DIR, exist_ok=True)
     seed = random.randrange(2 ** 31)
-    prompt = job["prompt"]
-    if job.get("enhance") and prompt:
-        job["status"] = "prompt"
-        prompt = enhance(prompt, job["mode"], bool(job.get("source")))
-        job["final_prompt"] = prompt
-    src = source_image(job.get("source")) if job.get("source") else None
+    job["status"] = "prompt" if job.get("enhance") and "final_prompt" not in job else job["status"]
+    if job["mode"] == "video":  # enhance every queued video prompt now: the assistant is paused during the videos
+        for j in [job] + [j for j in jobs if j["state"] == "queued" and j["mode"] == "video"]:
+            _enhance_job(j)
+    _enhance_job(job)
+    prompt = job.get("final_prompt") or job["prompt"]
+    src =source_image(job.get("source")) if job.get("source") else None
     item = {"id": mid, "prompt": job["prompt"], "final_prompt": prompt, "created": time.time(), "aspect": job["aspect"],
             "mode": job["mode"], "seed": seed,
             "parent": job["source"] if job.get("source") and not str(job["source"]).startswith("data:") else None}
@@ -366,6 +382,8 @@ def submit(mode, prompt, aspect="16:9", seconds=5, source=None, enhance_prompt=T
     with _lock:
         jobs.append(job)
         del jobs[:-50]
+    if job["enhance"]:
+        threading.Thread(target=_enhance_job, args=(job,), daemon=True).start()
     if _thread is None:
         _thread = threading.Thread(target=_worker, daemon=True)
         _thread.start()
@@ -379,7 +397,7 @@ def status():
     for j in jobs:
         if j["state"] in ("done", "error") and j.get("ended", 0) < now - 600:
             continue
-        el = now - j["started"] if j.get("started") else 0
+        el = (j.get("ended") or now) - j["started"] if j.get("started") else 0
         out.append({k: v for k, v in j.items() if k not in ("source",)} | {
             "elapsed": round(el), "progress": min(0.97, el / j["est"]) if j.get("est") and j["state"] == "running" else None,
             "sourceThumb": j["source"] if isinstance(j.get("source"), str) and not j["source"].startswith("data:") else None})
