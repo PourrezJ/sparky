@@ -182,7 +182,7 @@ def _folder_size(p, budget=3.0):
     """Total size and file count of a folder, stopped after `budget` seconds (big trees: partial, flagged)."""
     total = n = 0
     t0 = time.time()
-    for d, dirs, files in os.walk(p):
+    for d, _, files in os.walk(p):
         for fn in files:
             try:
                 total += os.path.getsize(os.path.join(d, fn))
