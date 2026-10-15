@@ -26,7 +26,7 @@ body.closed #side{margin-left:-260px}
 #list{flex:1;overflow-y:auto;padding:6px 8px}
 #list .h{font-size:12px;color:var(--dim);padding:12px 10px 6px}
 .cv{display:flex;align-items:center;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--txt2)}
-.cv:hover{background:var(--hov)}.cv.on{background:var(--s2);color:#fff}
+.cv:hover{background:var(--hov)}.cv.on{background:var(--s2);color:var(--txt)}
 .cv span{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .cv button{display:none;color:var(--mut);width:24px;height:24px;border-radius:6px;place-items:center}
 .cv:hover button{display:grid}.cv button:hover{color:var(--bad)}
@@ -140,7 +140,7 @@ footer{padding:0 20px 16px}
 #edwrap{position:relative;line-height:0}
 #edwrap canvas{display:block}
 #mk{position:absolute;left:0;top:0;opacity:.5;cursor:crosshair;touch-action:none}
-input[type=range]{accent-color:#fff}
+input[type=range]{accent-color:var(--txt)}
 #set{position:fixed;inset:0;background:#000a;display:none;place-items:center;z-index:12}
 #set .card{background:var(--s2);border-radius:16px;width:min(520px,94vw);max-height:90vh;overflow:auto;padding:22px}
 #set h3{margin:0 0 16px;font-weight:600}
@@ -954,6 +954,9 @@ const EN={
  'Tes images et vidéos : génère, anime une image':'Your images and videos: generate, animate a picture','vidéo':'video','pour 5 s de vidéo':'for 5 s of video',
  'en pause (vidéo)':'paused (video)',"l'assistant est en pause pendant une vidéo du Studio, il revient juste après":'the assistant is paused during a Studio video, it comes back right after',
  "rechargement de l'assistant":'reloading the assistant',
+ "Vidéo avec le son (ambiance, voix, musique), texte ou image vers vidéo, jusqu'à 10 s.":'Video with sound (ambience, voices, music), text or image to video, up to 10 s.',
+ 'Vidéo plus légère (sans le son), texte ou image vers vidéo.':'Lighter video (no sound), text or image to video.','inconnu':'unknown',
+ 'lourd : l’assistant est mis en pause pendant une vidéo':'heavy: the assistant is paused during a video','tient en mémoire':'fits in memory',
  'Thème':'Theme','Auto (comme Windows)':'Auto (follow Windows)','Clair':'Light','Sombre':'Dark',
  // projets
  'Test automatique : ça fonctionne':'Automatic test: it works','Test automatique : erreurs trouvées':'Automatic test: errors found','essai':'attempt',
@@ -994,6 +997,7 @@ const EN={
  "Sans GPU NVIDIA, l'assistant tourne sur le processeur : choisis un petit modèle.":'Without an NVIDIA GPU the assistant runs on the processor: pick a small model.',
 };
 const EN_RX=[
+ [/^En cours : (.+?) · Auto = (.+?) selon la mémoire libre\. Un contexte plus grand utilise plus de mémoire\.$/,'Running: $1 · Auto = $2 from the free memory. A bigger context uses more memory.'],
  [/^clé (.+)$/,'key $1'],[/^☁ Modèle cloud actif \((.+)\) : tes messages sont envoyés à ce fournisseur\.$/,'☁ Cloud model active ($1): your messages are sent to this provider.'],
  [/^(\d+) modèles$/,'$1 models'],[/^Connexion à (.+)$/,'Connecting to $1'],
  [/^(.+) · ([\d.]+) Go$/,'$1 · $2 GB'],[/^(.+) · à jour$/,'$1 · up to date'],[/^(.+) · nouvelle version (.+) disponible$/,'$1 · new version $2 available'],

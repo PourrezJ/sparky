@@ -19,78 +19,89 @@ everything runs on your own PC. Nothing is sent to the internet unless you turn 
   <img alt="English and French" src="https://img.shields.io/badge/UI-English%20%7C%20Fran%C3%A7ais-lightgrey">
 </p>
 
-<p align="center"><img src="docs/demo-artifact.gif" alt="Sparky writes a Breakout game live in the side panel, then runs it" width="900"></p>
+<p align="center"><img src="docs/demo-studio.gif" alt="Sparky Studio: videos with sound generated locally" width="900"><br><i>🎬 The Studio — every video here was generated on the PC, with its sound, by LTX-2.5.</i></p>
 
 ---
 
-## What it does
+## ✨ What it does
 
-- **Chat like ChatGPT, offline** — conversation history, plus **temporary chats** that are never saved. **Edit** any of your messages, **regenerate** or **continue** an answer, and flip between the versions (‹ 2/3 ›).
-- **Ask your documents (RAG)** — drop PDFs, Word, Excel, PowerPoint, text or code files into a collection: Sparky splits and indexes them on your PC (multilingual embeddings), then answers from them and **cites its sources** [1] [2].
-- **Web search, when you want it** — turn on *Web* under the message box: the assistant searches (DuckDuckGo, or your own SearXNG), reads the pages and the links you paste, and cites them. Off by default.
-- **Assistants & prompt library** — save assistants (a role, their documents, web access) and reusable prompts you insert with **/**, plus standing instructions for every chat or for one conversation.
-- **Rich answers** — tables, LaTeX formulas, Mermaid diagrams, task lists and syntax-highlighted code, all rendered offline.
-- **Organize your chats** — full-text search, rename, pin, folders, export (JSON / Markdown) and import.
-- **Read aloud** — 🔊 on any answer: offline Piper voices (English, French, German, Spanish, Italian).
-- **Tools (MCP)** — plug any Model Context Protocol server (same config as Claude Desktop: files, GitHub, databases…) and the assistant uses its tools.
-- **Scheduled tasks** — "every morning at 8, summarize the tech news": Sparky runs the prompt and files the answer in a new chat.
-- **OpenAI-compatible API** — use Sparky's model from other apps (Continue, VS Code extensions, scripts) at `http://127.0.0.1:7860/v1`, with a key. Off by default.
-- **Light or dark** — follows Windows, or choose in the settings.
-- **Code & apps panel** — ask for a game, a web page, a tool or a script: it is written live in a panel next to the chat, with a **running preview**, the code, versions, copy and download.
-- **Multi-file projects** — "build me a mini project": a website with `index.html` + `css/` + `js/`, or a Python program split in modules. Files are written one by one, the preview serves the whole project, the assistant can **generate the pictures** of a website itself (hero banner, products…) and put them in the project, and when it is done Sparky **tests the project automatically** — website opened in a headless browser (JavaScript errors, missing files, broken layout, every button clicked), Python and Node.js programs executed (`npm install` included) — and the model **fixes the errors until it works**. **▶ Run** re-runs it anytime, and the project downloads as a ZIP. Node.js is installed automatically (portable).
-- **Studio: images & videos** — a gallery of everything you generated, with a Grok-Imagine-like prompt bar: **text → image**, **text → video** and **image → video** (animate any picture). Videos come **with synchronized sound** (LTX-2.5); your idea can be expanded into a detailed prompt by the assistant first.
-- **Images** — generate and edit pictures by simply asking ("make it snow", "remove the bottle"). The agent checks its own result and retries when needed.
-- **Attach any file** — click **+** or drag and drop: PDF, Word, PowerPoint, Excel, text and code files are read, audio and video are transcribed offline by Whisper, and everything is given to the assistant as context. Each file shows a preview card (*Added as context!*).
-- **Vision** — drop photos, screenshots or scanned documents: the assistant sees and analyses them.
-- **Sparky Bot (beta)** — a companion that remembers you, learns your style and grows with you, with a memory you can see and edit ([details](#-sparky-bot--personal-companion-with-memory-beta-in-progress)).
-- **Voice dictation, offline** — click the mic, talk, stop: Whisper turns your voice into text right in the input box.
-- **Adjustable thinking** — Off, Light, Normal or Deep, right from the model menu.
-- **System scan** — at install time (and anytime from *Settings > System*) Sparky checks your GPU, memory and disk, then **recommends the models that fit your machine**.
-- **Cloud models, if you want** — add an OpenRouter, Claude, OpenAI (or other) key in the settings to use cloud models too. Off by default.
-- **Models already on your PC** — on first launch Sparky looks for the models you already have (LM Studio, Ollama, Hugging Face cache, Jan, GPT4All, llama.cpp, other ComfyUI installs, any folder) and uses them in one click, without downloading them again.
-- **Model library** — one-click installs with resumable downloads, and speed / quality / memory indicators *for your hardware*.
-- **Only official models** — Qwen, Gemma, gpt-oss, Nemotron, FLUX.2, Whisper… "uncensored", "abliterated" or NSFW variants are excluded from the catalog and from the Hugging Face search.
-- **English or French** — chosen during install, switchable in the settings.
+### 💬 Chat
+- 🔒 **Like ChatGPT, offline** — history, plus 👻 **temporary chats** that are never saved.
+- ✏️ **Edit** any message, 🔁 **regenerate** or ➡️ **continue** an answer, and flip between versions (‹ 2/3 ›).
+- 🧠 **Adjustable thinking** — Off, Light, Normal or Deep, and see how the model reasoned.
+- 📝 **Rich answers** — tables, LaTeX formulas, Mermaid diagrams, task lists, syntax-highlighted code (all offline).
+- 👁️ **Vision** — drop photos, screenshots or scans: the assistant sees and analyses them.
+- 📎 **Attach any file** — PDF, Word, PowerPoint, Excel, text, code, audio and video (transcribed offline).
+- 🗂️ **Organize your chats** — full-text search, rename, 📌 pin, 📁 folders, export (JSON / Markdown) and import.
 
-## Everything Sparky supports
+### 📚 Knowledge & web
+- 📄 **Ask your documents (RAG)** — collections of PDFs, Office files, text, code… indexed on your PC, answers **with numbered sources** [1] [2].
+- 🌐 **Web search, when you want it** — turn on *Web*: the assistant searches (DuckDuckGo or your SearXNG), reads pages and the links you paste, and cites them. Off by default.
+- 🧑‍💼 **Assistants** — a role, its documents and web access, reusable in one click.
+- ⚡ **Prompt library** — type **/** to insert a saved prompt with `{{variables}}`; standing instructions for every chat or just one.
+
+### 🎨 Create
+- 🎬 **Studio: images & videos** — a gallery of everything you generated, with a Grok-Imagine-like prompt bar: **text → image**, **text → video**, **image → video** ("Animate"). Videos come **with synchronized sound** 🔊 (LTX-2.5), and your idea is expanded into a detailed prompt first.
+- 🖼️ **Images** — generate and edit by asking ("make it snow", "remove the bottle"); the agent checks its own result and retries.
+- 🧩 **Code & apps panel** — games, pages, tools and scripts written live next to the chat, with a **running preview**.
+- 🏗️ **Multi-file projects** — websites (`index.html` + `css/` + `js/`), Python or Node.js programs; the assistant makes the pictures, then Sparky **tests the project automatically** (headless browser, `npm install`, run) and the model **fixes the errors until it works**. ▶ Run anytime, download as ZIP.
+
+### 🎙️ Voice
+- 🎤 **Dictation, offline** — click the mic, talk, stop: Whisper writes it in the input box.
+- 🔊 **Read aloud** — on any answer, offline Piper voices (English, French, German, Spanish, Italian).
+
+### 🛠️ Tools & automation
+- 🔌 **MCP tools** — plug any Model Context Protocol server (same config as Claude Desktop: files, GitHub, databases…).
+- ⏰ **Scheduled tasks** — "every morning at 8, summarize the tech news": the answer lands in a new chat.
+- 🔗 **OpenAI-compatible API** — use Sparky's model from Continue, VS Code extensions or scripts at `http://127.0.0.1:7860/v1`. Off by default.
+- 🤖 **Sparky Bot (beta)** — a companion that remembers you and learns your style, with a memory you can see and edit ([details](#-sparky-bot--personal-companion-with-memory-beta-in-progress)).
+
+### ⚙️ Models & setup
+- 🩺 **System scan** — checks your GPU, memory and disk, then **recommends the models that fit your machine**.
+- 📦 **Model library** — one-click installs, fast parallel resumable downloads, speed / quality / memory indicators *for your hardware*.
+- ♻️ **Models already on your PC** — LM Studio, Ollama, Hugging Face cache, Jan, GPT4All, other ComfyUI installs… used in one click.
+- ☁️ **Cloud models, if you want** — OpenRouter, Claude, OpenAI, Gemini, Mistral… Off by default.
+- ✅ **Only official models** — "uncensored", "abliterated" or NSFW variants are excluded from the catalog and the Hugging Face search.
+- 🌗 **Light or dark** theme, 🇬🇧 **English or 🇫🇷 French** interface, ⬆️ one-click updates.
+
+## 📋 Everything Sparky supports
 
 | Area | Supported |
 |---|---|
-| **Chat** | streaming answers · visible reasoning with 4 thinking levels · edit a sent message · regenerate · continue · answer versions (‹ 2/3 ›) · copy · read aloud · temporary chats · English / French UI · light / dark / auto theme |
-| **Conversations** | history · full-text search · rename · pin · folders · export JSON (with images) or Markdown · import (Sparky JSON or `[{role, content}]`) |
-| **Setup of a chat** | assistant presets (role, documents, web) · per-chat instructions (system prompt) · standing instructions for every chat · prompt library with `/commands` and `{{variables}}` |
-| **Documents (RAG)** | collections · PDF (with page numbers), Word, PowerPoint, Excel, OpenDocument, text, Markdown, CSV, JSON, code, audio and video (transcribed) · local multilingual embeddings (`multilingual-e5-small`) + keyword search · numbered citations with the source passages |
-| **Web** | search (DuckDuckGo / Bing, or your SearXNG) · reads pages and pasted links (HTML, PDF, text) · citations · private addresses blocked · off by default, per chat |
-| **Files in a message** | images (vision), PDF, Office, text and code, audio and video (offline Whisper transcription) · drag and drop, paste |
-| **Studio** | media library of every image and video (Studio and chats) · text → image · text → video · image → video ("Animate") · 16:9, 9:16, 1:1, 4:3, 3:4 · 3 to 10 s · prompt enhancement · video player, download, reuse prompt · the local assistant pauses during a video and comes back after |
-| **Video models** | LTX-2.5 22B (video + sound, ~40 s for 4 s of video on an RTX Spark once loaded) · Wan 2.2 5B (lighter, no sound) |
-| **Images** | generate and edit by instruction (FLUX.2 Klein, Qwen-Image 2.1, SDXL) · paint a zone to edit · reuse a face, character, style or scene · the agent checks its result and retries |
-| **Code & projects** | artifacts panel with live preview, code, versions, download · multi-file projects (web, Python, Node.js) · automatic test-and-fix loop (headless browser, Python, `npm install` / build / test) · ▶ Run · ZIP download · generated pictures inside projects |
-| **Markdown** | GFM tables · task lists · LaTeX (KaTeX) · Mermaid diagrams · syntax highlighting · citations · served locally (no CDN) |
-| **Voice** | offline dictation (Whisper large-v3 turbo / base) with live level bars · offline read-aloud (Piper voices: en, fr, de, es, it) |
-| **Tools** | MCP servers over stdio (`command` / `args` / `env`) or Streamable HTTP (`url` / `headers`), Claude Desktop config format |
-| **Automation** | scheduled tasks: daily, weekly, every N minutes, once · results filed in a new chat with an unread badge |
-| **API** | OpenAI-compatible `/v1/models`, `/v1/chat/completions` (streaming or not), `/v1/embeddings` · bearer key · off by default · local only |
-| **Models** | local GGUF assistants (llama.cpp: CUDA x64 / ARM64, or CPU) · catalog with speed / quality / memory for your PC · models already on your PC (LM Studio, Ollama, Hugging Face cache…) · Hugging Face search · optional cloud models (OpenRouter, Claude, OpenAI, Gemini, Mistral, Groq, DeepSeek, xAI, any OpenAI-compatible server) · only official, non-NSFW models |
-| **Sparky Bot (beta)** | companion with long-term, editable memory · style profile · journal · relationship level |
-| **Install & updates** | step-by-step installer · system scan with recommended models · one-click updates |
+| 💬 **Chat** | streaming answers · visible reasoning with 4 thinking levels · edit a sent message · regenerate · continue · answer versions (‹ 2/3 ›) · copy · read aloud · temporary chats · English / French UI · light / dark / auto theme |
+| 🗂️ **Conversations** | history · full-text search · rename · pin · folders · export JSON (with images) or Markdown · import (Sparky JSON or `[{role, content}]`) |
+| 🧑‍💼 **Setup of a chat** | assistant presets (role, documents, web) · per-chat instructions (system prompt) · standing instructions for every chat · prompt library with `/commands` and `{{variables}}` |
+| 📄 **Documents (RAG)** | collections · PDF (with page numbers), Word, PowerPoint, Excel, OpenDocument, text, Markdown, CSV, JSON, code, audio and video (transcribed) · local multilingual embeddings (`multilingual-e5-small`) + keyword search · numbered citations with the source passages |
+| 🌐 **Web** | search (DuckDuckGo / Bing, or your SearXNG) · reads pages and pasted links (HTML, PDF, text) · citations · private addresses blocked · off by default, per chat |
+| 📎 **Files in a message** | images (vision), PDF, Office, text and code, audio and video (offline Whisper transcription) · drag and drop, paste |
+| 🎬 **Studio** | media library of every image and video (Studio and chats) · text → image · text → video · image → video ("Animate") · 16:9, 9:16, 1:1, 4:3, 3:4 · 3 to 10 s · prompt enhancement · video player, download, reuse prompt · the local assistant pauses during a video and comes back after |
+| 🎞️ **Video models** | LTX-2.5 22B (video + sound, ~40 s for 4 s of video on an RTX Spark once loaded) · Wan 2.2 5B (lighter, no sound) |
+| 🖼️ **Images** | generate and edit by instruction (FLUX.2 Klein, Qwen-Image 2.1, SDXL) · paint a zone to edit · reuse a face, character, style or scene · the agent checks its result and retries |
+| 🧩 **Code & projects** | artifacts panel with live preview, code, versions, download · multi-file projects (web, Python, Node.js) · automatic test-and-fix loop (headless browser, Python, `npm install` / build / test) · ▶ Run · ZIP download · generated pictures inside projects |
+| 📝 **Markdown** | GFM tables · task lists · LaTeX (KaTeX) · Mermaid diagrams · syntax highlighting · citations · served locally (no CDN) |
+| 🎙️ **Voice** | offline dictation (Whisper large-v3 turbo / base) with live level bars · offline read-aloud (Piper voices: en, fr, de, es, it) |
+| 🔌 **Tools** | MCP servers over stdio (`command` / `args` / `env`) or Streamable HTTP (`url` / `headers`), Claude Desktop config format |
+| ⏰ **Automation** | scheduled tasks: daily, weekly, every N minutes, once · results filed in a new chat with an unread badge |
+| 🔗 **API** | OpenAI-compatible `/v1/models`, `/v1/chat/completions` (streaming or not), `/v1/embeddings` · bearer key · off by default · local only |
+| 📦 **Models** | local GGUF assistants (llama.cpp: CUDA x64 / ARM64, or CPU) · catalog with speed / quality / memory for your PC · models already on your PC (LM Studio, Ollama, Hugging Face cache…) · Hugging Face search · optional cloud models (OpenRouter, Claude, OpenAI, Gemini, Mistral, Groq, DeepSeek, xAI, any OpenAI-compatible server) · only official, non-NSFW models |
+| 🤖 **Sparky Bot (beta)** | companion with long-term, editable memory · style profile · journal · relationship level |
+| 🚀 **Install & updates** | step-by-step installer · system scan with recommended models · one-click updates |
 
-## Screenshots
-
-<p align="center"><img src="docs/studio.png" alt="Studio: media library and prompt bar" width="900"><br><i>Studio — every image and video in one place; here a picture is about to be animated into a video with sound.</i></p>
+## 📸 Screenshots
 
 | | |
 |---|---|
-| <img src="docs/studio-video.png" alt="Studio video viewer"><br>**Image → video** — the lighthouse picture, animated with LTX-2.5 (waves, rotating beam, sound) | <img src="docs/knowledge-chat.png" alt="Answers from your documents with citations"><br>**Documents** — answers from your files, with numbered sources |
-| <img src="docs/markdown.png" alt="Tables, formulas and diagrams"><br>**Rich answers** — tables, LaTeX, Mermaid, versions of an answer | <img src="docs/workspace-documents.png" alt="Workspace: document collections"><br>**Workspace** — document collections indexed on your PC |
-| <img src="docs/workspace-assistants.png" alt="Workspace: assistants"><br>**Assistants** — a role, documents and web access, reusable | <img src="docs/prompts.png" alt="Prompt library"><br>**Prompt library** — type / to insert a saved prompt |
-| <img src="docs/workspace-tools.png" alt="MCP tools"><br>**Tools (MCP)** — plug any MCP server | |
+| <img src="docs/studio.png" alt="Studio: videos generated locally"><br>🎬 **Studio** — your images and videos, with their sound | <img src="docs/studio-video.png" alt="Studio video viewer"><br>🎞️ **Video viewer** — balloons over Cappadocia, made on the PC in 2 minutes |
+| <img src="docs/studio-animate.png" alt="Animate a picture"><br>✨ **Image → video** — pick a picture, describe the motion and the sounds | <img src="docs/web-search.png" alt="Web search with citations"><br>🌐 **Web search** — the assistant searches, reads and cites its sources |
+| <img src="docs/knowledge-chat.png" alt="Answers from your documents with citations"><br>📄 **Documents** — answers from your files, with numbered sources | <img src="docs/markdown.png" alt="Tables, formulas and diagrams"><br>📝 **Rich answers** — tables, LaTeX, Mermaid, versions of an answer |
+| <img src="docs/workspace-documents.png" alt="Workspace: document collections"><br>📚 **Workspace** — document collections indexed on your PC | <img src="docs/workspace-assistants.png" alt="Workspace: assistants"><br>🧑‍💼 **Assistants** — a role, documents and web access, reusable |
+| <img src="docs/prompts.png" alt="Prompt library"><br>⚡ **Prompt library** — type / to insert a saved prompt | <img src="docs/workspace-tools.png" alt="MCP tools"><br>🔌 **Tools (MCP)** — plug any MCP server |
+| <img src="docs/workspace-tasks.png" alt="Scheduled tasks"><br>⏰ **Scheduled tasks** — prompts that run by themselves | <img src="docs/light.png" alt="Light theme"><br>🌗 **Light theme** — or dark, or follow Windows |
+| <img src="docs/image-edit.png" alt="Image generation and editing"><br>🖼️ **Images** — generate, then edit by instruction | <img src="docs/thinking.png" alt="Visible reasoning"><br>🧠 **Thinking** — see how the model reasoned |
+| <img src="docs/library-video.png" alt="Video models in the library"><br>📦 **Model library** — assistants, images, videos, voice | <img src="docs/settings.png" alt="Settings"><br>⚙️ **Settings** — language, theme, system, models, context |
+| <img src="docs/welcome.png" alt="Welcome screen with system scan"><br>🩺 **First launch** — system scan and recommended models | <img src="docs/picker.png" alt="Model menu with thinking levels"><br>🔀 **Model menu** — switch models, pick a thinking level |
 
-| | |
-|---|---|
-| <img src="docs/image-edit.png" alt="Image generation and editing"><br>**Images** — generate, then edit by instruction | <img src="docs/thinking.png" alt="Visible reasoning"><br>**Thinking** — see how the model reasoned |
-| <img src="docs/welcome.png" alt="Welcome screen with system scan"><br>**First launch** — system scan and recommended models | <img src="docs/picker.png" alt="Model menu with thinking levels"><br>**Model menu** — switch models, pick a thinking level |
-| <img src="docs/library.png" alt="Model library"><br>**Model library** — speed, quality and memory for your PC | <img src="docs/settings.png" alt="Settings"><br>**Settings** — language, system, models |
+<p align="center"><img src="docs/demo-artifact.gif" alt="Sparky writes a Breakout game live in the side panel, then runs it" width="800"><br><i>🧩 A Breakout game written live in the side panel, then played.</i></p>
 
 <p align="center"><img src="docs/demo-image.gif" alt="Generating and editing an image" width="800"></p>
 
@@ -129,7 +140,7 @@ Sparky Bot is a friend-like companion that **remembers you, learns your style an
 - [ ] Memory import / export, per-memory "why do you know this?" with the source message
 - [ ] Larger evaluation set for the memory engine across models
 
-## Install (Windows 10/11)
+## 🚀 Install (Windows 10/11)
 
 **One line**, in PowerShell:
 
@@ -157,7 +168,7 @@ Next times, double-click the shortcut (or `start.bat`). To stop everything: `sto
 
 Installer options: `-Lang en|fr`, `-Dir <folder>`, `-Yes` (no questions), `-Models` (also download the recommended models from the terminal), `-NoLaunch`. For the one-line install, use the environment variables `SPARKY_LANG`, `SPARKY_DIR`, `SPARKY_YES`, `SPARKY_MODELS`, `SPARKY_NOLAUNCH`.
 
-### Which machine?
+### 💻 Which machine?
 
 | Machine | Runs well |
 |---|---|
@@ -168,7 +179,7 @@ Installer options: `-Lang en|fr`, `-Dir <folder>`, `-Yes` (no questions), `-Mode
 
 The system scan picks automatically among these.
 
-## Models
+## 🧠 Models
 
 Speeds measured on an RTX Spark N1X (Q4, full power); Sparky adapts them to your GPU.
 
@@ -209,7 +220,7 @@ Video models are big: during a video, Sparky pauses the local assistant to give 
 
 Every model keeps its own license (Apache 2.0, Gemma Terms of Use, NVIDIA Open Model License, etc.): check its Hugging Face page before any commercial use.
 
-## Existing installation (ComfyUI / llama.cpp already installed)
+## 🔧 Existing installation (ComfyUI / llama.cpp already installed)
 
 Create a `config.json` file at the project root to reuse your folders:
 
@@ -225,7 +236,7 @@ Create a `config.json` file at the project root to reuse your folders:
 
 Other keys: `voice_dir`, `data_dir`, `app_port` (7860), `llm_port` (8080), `comfy_port` (8188). The `SPARKY_CONFIG` environment variable can point to another config file.
 
-## Command line
+## ⌨️ Command line
 
 ```powershell
 runtime\venv\Scripts\python.exe app\syscheck.py                  # system scan (add --lang=fr for French)
@@ -234,12 +245,12 @@ runtime\venv\Scripts\python.exe app\models_cli.py --recommended  # install the r
 runtime\venv\Scripts\python.exe app\models_cli.py qwen359        # install one model
 ```
 
-## Update / uninstall
+## ⬆️ Update / uninstall
 
 - **Update**: Sparky checks GitHub once an hour. When a new version is out, a message offers to **install the update**: Sparky runs `git pull` and restarts by itself. If files were modified locally, it lists them and gives the command to put them aside first; for an install made from the ZIP, it gives the install command to run again. The current version is in *Settings > Version* (and in the `VERSION` file).
 - **Uninstall**: `stop.bat`, then delete the install folder (`%LOCALAPPDATA%\Sparky` by default) and the shortcuts.
 
-## Cloud models (optional)
+## ☁️ Cloud models (optional)
 
 Sparky is 100% local by default. If you want, *Settings > Cloud models* lets you add a key for **OpenRouter, Anthropic (Claude), OpenAI, Google Gemini, Mistral, Groq, DeepSeek, xAI**, or any **OpenAI-compatible** server (LM Studio, vLLM, a company proxy...). Pick a model in the provider's list: it appears in the model menu with a ☁, and switching to it frees your GPU.
 
@@ -247,13 +258,13 @@ Sparky is 100% local by default. If you want, *Settings > Cloud models* lets you
 - While a cloud model is active, the footer says so: your messages, images and attached files then go to that provider.
 - Claude goes through the official `anthropic` SDK (adaptive thinking, effort, refusal fallback); the others through their OpenAI-compatible API.
 
-## Privacy
+## 🔒 Privacy
 
 Everything runs on your machine: conversations, documents, images and models stay in the install folder (`data\`, `models\`). The only outgoing connections download the tools and models (GitHub, PyPI, Hugging Face, the Piper voices), search the model library, check for updates (the `VERSION` file on GitHub), and — only when you turn them on — search the web and read pages (*Web* chip of a chat, scheduled tasks), run MCP tools that reach the internet, or talk to a cloud provider.
 
 The local API only answers the Sparky page itself: requests from other websites (cross-site or DNS rebinding) are refused, and the projects the assistant writes run on their own origin (port 7861), so their code cannot drive Sparky. The OpenAI-compatible API (`/v1`) is off by default; when on, it requires its key and still only listens on `127.0.0.1`. Web reading refuses private and local addresses.
 
-## OpenAI-compatible API
+## 🔗 OpenAI-compatible API
 
 Turn it on in *Workspace > API*, then point any OpenAI client at Sparky's active model:
 
@@ -263,7 +274,7 @@ client = OpenAI(base_url="http://127.0.0.1:7860/v1", api_key="sk-sparky-...")  #
 print(client.chat.completions.create(model="sparky", messages=[{"role": "user", "content": "Hello!"}]).choices[0].message.content)
 ```
 
-## MCP tools
+## 🔌 MCP tools
 
 *Workspace > Tools (MCP)* takes the same JSON as Claude Desktop, for example:
 
@@ -276,7 +287,7 @@ print(client.chat.completions.create(model="sparky", messages=[{"role": "user", 
 
 Servers start with Sparky (the bundled Node.js provides `npx`); their tools are offered to the assistant in every chat.
 
-## Development
+## 🧪 Development
 
 ```powershell
 runtime\venv\Scripts\python.exe -m pip install pytest ruff
@@ -286,13 +297,13 @@ runtime\venv\Scripts\python.exe -m pytest
 
 The tests need no model, GPU or network: they run Sparky on throw-away folders, with scripted models and fake cloud providers (`tests/mocks.py`). GitHub Actions runs them on Windows (Python 3.10 and 3.13) and Linux, and checks that the PowerShell scripts parse in Windows PowerShell 5.1.
 
-## En français
+## 🇫🇷 En français
 
 L'interface et l'installeur existent aussi en français : choisis *Français* au début de l'installation, ou change la langue dans *Paramètres*.
 
 <p align="center"><img src="docs/french.png" alt="Sparky en français" width="760"></p>
 
-## Project layout
+## 🗂️ Project layout
 
 ```
 app/
@@ -326,6 +337,6 @@ start.ps1 / stop.ps1
 docs/           screenshots and demos
 ```
 
-## License
+## 📜 License
 
 Code under the [MIT](LICENSE) license. ComfyUI (GPL-3.0) and llama.cpp (MIT) are downloaded separately during install.
