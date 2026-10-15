@@ -36,6 +36,24 @@ def test_settings_and_catalog(base):
     assert all({"id", "kind", "installed"} <= m.keys() for m in s["catalog"])
 
 
+def test_llm_context_setting_and_restart(base):
+    import harness, server
+    old = harness.SETTINGS.get("llm_ctx", 0)
+    try:
+        server.update_settings({"llm_ctx": "65536"})
+        assert harness.SETTINGS["llm_ctx"] == 65536 and server.llm_ctx({"size_gb": 20}) == 65536
+        server.update_settings({"llm_ctx": 10})  # clamped
+        assert harness.SETTINGS["llm_ctx"] == server.CTX_MIN
+        server.update_settings({"llm_ctx": 0})   # automatic
+        assert harness.SETTINGS["llm_ctx"] == 0 and server.llm_ctx({"size_gb": 20}) == server.auto_ctx({"size_gb": 20})
+        code, s = call(base, "/api/settings")
+        assert code == 200 and {"ctx", "autoCtx"} <= s["active"].keys()
+        assert call(base, "/api/restart", {"service": "nope"})[0] == 400
+    finally:
+        harness.SETTINGS["llm_ctx"] = old
+        harness.save_settings()
+
+
 def test_metrics_without_any_engine(base):
     code, m = call(base, "/api/metrics")
     assert code == 200 and m["llm"]["up"] is False and m["image"]["up"] is False and m["switch"]["phase"] == "idle"

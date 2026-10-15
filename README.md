@@ -8,7 +8,7 @@
 <h1 align="center">Sparky</h1>
 
 <p align="center"><b>Your private AI assistant. 100% local.</b><br>
-Chat, see images, generate and edit pictures, build apps, ask your documents, dictate and listen —<br>
+Chat, see images, generate pictures and videos with sound, build apps, ask your documents, dictate and listen —<br>
 everything runs on your own PC. Nothing is sent to the internet unless you turn it on.</p>
 
 <p align="center">
@@ -38,6 +38,7 @@ everything runs on your own PC. Nothing is sent to the internet unless you turn 
 - **Light or dark** — follows Windows, or choose in the settings.
 - **Code & apps panel** — ask for a game, a web page, a tool or a script: it is written live in a panel next to the chat, with a **running preview**, the code, versions, copy and download.
 - **Multi-file projects** — "build me a mini project": a website with `index.html` + `css/` + `js/`, or a Python program split in modules. Files are written one by one, the preview serves the whole project, the assistant can **generate the pictures** of a website itself (hero banner, products…) and put them in the project, and when it is done Sparky **tests the project automatically** — website opened in a headless browser (JavaScript errors, missing files, broken layout, every button clicked), Python and Node.js programs executed (`npm install` included) — and the model **fixes the errors until it works**. **▶ Run** re-runs it anytime, and the project downloads as a ZIP. Node.js is installed automatically (portable).
+- **Studio: images & videos** — a gallery of everything you generated, with a Grok-Imagine-like prompt bar: **text → image**, **text → video** and **image → video** (animate any picture). Videos come **with synchronized sound** (LTX-2.5); your idea can be expanded into a detailed prompt by the assistant first.
 - **Images** — generate and edit pictures by simply asking ("make it snow", "remove the bottle"). The agent checks its own result and retries when needed.
 - **Attach any file** — click **+** or drag and drop: PDF, Word, PowerPoint, Excel, text and code files are read, audio and video are transcribed offline by Whisper, and everything is given to the assistant as context. Each file shows a preview card (*Added as context!*).
 - **Vision** — drop photos, screenshots or scanned documents: the assistant sees and analyses them.
@@ -61,6 +62,8 @@ everything runs on your own PC. Nothing is sent to the internet unless you turn 
 | **Documents (RAG)** | collections · PDF (with page numbers), Word, PowerPoint, Excel, OpenDocument, text, Markdown, CSV, JSON, code, audio and video (transcribed) · local multilingual embeddings (`multilingual-e5-small`) + keyword search · numbered citations with the source passages |
 | **Web** | search (DuckDuckGo / Bing, or your SearXNG) · reads pages and pasted links (HTML, PDF, text) · citations · private addresses blocked · off by default, per chat |
 | **Files in a message** | images (vision), PDF, Office, text and code, audio and video (offline Whisper transcription) · drag and drop, paste |
+| **Studio** | media library of every image and video (Studio and chats) · text → image · text → video · image → video ("Animate") · 16:9, 9:16, 1:1, 4:3, 3:4 · 3 to 10 s · prompt enhancement · video player, download, reuse prompt · the local assistant pauses during a video and comes back after |
+| **Video models** | LTX-2.5 22B (video + sound, ~40 s for 4 s of video on an RTX Spark once loaded) · Wan 2.2 5B (lighter, no sound) |
 | **Images** | generate and edit by instruction (FLUX.2 Klein, Qwen-Image 2.1, SDXL) · paint a zone to edit · reuse a face, character, style or scene · the agent checks its result and retries |
 | **Code & projects** | artifacts panel with live preview, code, versions, download · multi-file projects (web, Python, Node.js) · automatic test-and-fix loop (headless browser, Python, `npm install` / build / test) · ▶ Run · ZIP download · generated pictures inside projects |
 | **Markdown** | GFM tables · task lists · LaTeX (KaTeX) · Mermaid diagrams · syntax highlighting · citations · served locally (no CDN) |
@@ -74,11 +77,14 @@ everything runs on your own PC. Nothing is sent to the internet unless you turn 
 
 ## Screenshots
 
+<p align="center"><img src="docs/studio.png" alt="Studio: media library and prompt bar" width="900"><br><i>Studio — every image and video in one place; here a picture is about to be animated into a video with sound.</i></p>
+
 | | |
 |---|---|
-| <img src="docs/knowledge-chat.png" alt="Answers from your documents with citations"><br>**Documents** — answers from your files, with numbered sources | <img src="docs/markdown.png" alt="Tables, formulas and diagrams"><br>**Rich answers** — tables, LaTeX, Mermaid, versions of an answer |
-| <img src="docs/workspace-documents.png" alt="Workspace: document collections"><br>**Workspace** — document collections indexed on your PC | <img src="docs/workspace-assistants.png" alt="Workspace: assistants"><br>**Assistants** — a role, documents and web access, reusable |
-| <img src="docs/workspace-tools.png" alt="MCP tools"><br>**Tools (MCP)** — plug any MCP server | <img src="docs/prompts.png" alt="Prompt library"><br>**Prompt library** — type / to insert a saved prompt |
+| <img src="docs/studio-video.png" alt="Studio video viewer"><br>**Image → video** — the lighthouse picture, animated with LTX-2.5 (waves, rotating beam, sound) | <img src="docs/knowledge-chat.png" alt="Answers from your documents with citations"><br>**Documents** — answers from your files, with numbered sources |
+| <img src="docs/markdown.png" alt="Tables, formulas and diagrams"><br>**Rich answers** — tables, LaTeX, Mermaid, versions of an answer | <img src="docs/workspace-documents.png" alt="Workspace: document collections"><br>**Workspace** — document collections indexed on your PC |
+| <img src="docs/workspace-assistants.png" alt="Workspace: assistants"><br>**Assistants** — a role, documents and web access, reusable | <img src="docs/prompts.png" alt="Prompt library"><br>**Prompt library** — type / to insert a saved prompt |
+| <img src="docs/workspace-tools.png" alt="MCP tools"><br>**Tools (MCP)** — plug any MCP server | |
 
 | | |
 |---|---|
@@ -192,6 +198,13 @@ All of them can think before answering (adjustable level). Vision can be added i
 | Whisper large-v3 turbo | 1.6 GB | very accurate, 99 languages (GPU) |
 | Whisper base | 0.3 GB | light, for machines without a GPU |
 
+| Video | Size | Time for 5 s | Note |
+|---|---|---|---|
+| LTX-2.5 22B (distilled, int8) | 39 GB | ~45 s once loaded (RTX Spark) | video **with sound**, text or image to video |
+| Wan 2.2 TI2V 5B | 18 GB | ~2–3 min | lighter, no sound |
+
+Video models are big: during a video, Sparky pauses the local assistant to give the whole GPU memory to the video model (about 5× faster), then reloads it.
+
 \* includes the IP-Adapter files (≈ 4 GB, shared by all SDXL models) used to reuse a character or a style.
 
 Every model keeps its own license (Apache 2.0, Gemma Terms of Use, NVIDIA Open Model License, etc.): check its Hugging Face page before any commercial use.
@@ -294,6 +307,7 @@ app/
   checker.py    automatic project tests (headless browser, Python, Node.js)
   stt.py        offline voice dictation (Whisper)
   tts.py        offline read-aloud (Piper voices through onnxruntime + espeak-ng)
+  studio.py     Studio: media library, image / video / image-to-video jobs (LTX-2.5, Wan 2.2)
   rag.py        document collections: extraction, chunking, embeddings, search with citations
   web.py        web search and page reading (DuckDuckGo / Bing / SearXNG), private addresses blocked
   mcp.py        Model Context Protocol client (stdio and Streamable HTTP)

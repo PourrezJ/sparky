@@ -21,6 +21,7 @@ import mcp
 import openai_api
 import rag
 import scheduler
+import studio
 import syscheck
 import updater
 import workspace
@@ -34,7 +35,7 @@ MAX_BODY = 300 * 2**20  # an attached file is at most 200 MB (base64 makes it a 
 NO_ASSISTANT = "Aucun assistant n'est installé : ouvre Paramètres > Bibliothèque de modèles."
 SID = re.compile(r"\d{8}-\d{6}-[0-9a-f]{4}")  # Session ids (they are folder names)
 sessions = {}           # id -> Session (in memory)
-llm_state = {"name": None}
+llm_state = {"name": None, "ctx": 0}  # ctx: context window of the running llama-server
 failed = set()          # models that just failed to load: not retried automatically (the user can retry)
 # model switch in progress, tracked by the UI (spinner + steps)
 switch = {"kind": None, "id": None, "label": "", "phase": "idle", "steps": [], "t0": 0.0, "eta": 0, "error": ""}
@@ -73,6 +74,27 @@ def stop_llm():
         time.sleep(0.25)
 
 
+def stop_comfy():
+    """Stops ComfyUI (only the python process that listens on its port)."""
+    for c in psutil.net_connections("tcp"):
+        if c.laddr and c.laddr.port == config.COMFY_PORT and c.status == psutil.CONN_LISTEN and c.pid:
+            try:
+                p = psutil.Process(c.pid)
+                if "python" in p.name().lower():
+                    p.kill()
+            except psutil.Error:
+                pass
+    for _ in range(40):
+        if not port_listening(config.COMFY_PORT):
+            return
+        time.sleep(0.25)
+
+
+def restart_comfy():
+    stop_comfy()
+    start_comfy()
+
+
 def free_comfy_memory(timeout=10):
     """Unloads ComfyUI's models (VRAM) before loading another big model. ComfyUI answers with an empty body."""
     try:
@@ -100,14 +122,33 @@ def installed_llms():
     return [k for k, m in LLMS.items() if m["kind"] == "llm" and catalog.installed(m)]
 
 
+CTX_MIN, CTX_MAX = 4096, 262144
+
+
+def auto_ctx(m):
+    """Largest comfortable context for this model: depends on the memory left once the model is loaded."""
+    spare = psutil.virtual_memory().total / 2**30 - m.get("size_gb", 0)
+    return 65536 if spare >= 12 else 32768 if spare >= 6 else 16384
+
+
+def llm_ctx(m):
+    """Context window to launch with: the one chosen in Settings, or the automatic one (llm_ctx = 0)."""
+    try:
+        chosen = int(harness.SETTINGS.get("llm_ctx") or 0)
+    except (TypeError, ValueError):
+        chosen = 0
+    return min(CTX_MAX, max(CTX_MIN, chosen)) if chosen else auto_ctx(m)
+
+
 def launch_llm(m):
     if not os.path.exists(config.LLAMA_SERVER):
         raise RuntimeError("llama-server introuvable : " + config.LLAMA_SERVER + " (relance install.ps1)")
     args = catalog.llm_args(m)
     gpu = syscheck.current()["assess"]["mode"] != "cpu"
+    ctx = llm_state["ctx"] = llm_ctx(m)
     _spawn([config.LLAMA_SERVER, "-m", args[0], "--port", str(config.LLM_PORT), "-ngl", "99" if gpu else "0",
-            "-c", "32768", "--jinja", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0", *args[1:]], LLM_LOG)
-    print("Assistant en cours de demarrage :", m["label"])
+            "-c", str(ctx), "--jinja", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0", *args[1:]], LLM_LOG)
+    print("Assistant en cours de demarrage :", m["label"], f"(contexte {ctx})")
 
 
 def autostart():
@@ -115,7 +156,7 @@ def autostart():
     while True:
         time.sleep(4)
         try:
-            if switch["phase"] == "loading":
+            if switch["phase"] == "loading" or llm_state.get("paused"):
                 continue
             ok = [i for i in installed_llms() if i not in failed]
             ok = [i for i in ok if not LLMS[i].get("cloud")] or ok  # a local model first
@@ -228,8 +269,8 @@ def use_model(mid, auto=False):
         return False
     if m["kind"] == "embed":  # Sparky Bot's memory model: always used once installed
         return True
-    if m["kind"] == "voice":  # nothing to load: Whisper loads on first dictation
-        harness.SETTINGS["voice"] = mid
+    if m["kind"] in ("voice", "video"):  # nothing to load now: Whisper / the video model load on first use
+        harness.SETTINGS[m["kind"]] = mid
         harness.save_settings()
         return True
     with _switch_lock:  # one switch at a time
@@ -300,7 +341,7 @@ def gpu_stats():
 
 def metrics():
     vm = psutil.virtual_memory()
-    cur = LLMS.get(llm_state["name"], {})
+    cur = LLMS.get(llm_state["name"] or llm_state.get("paused") or "", {})
     llm_up = bool(cur.get("cloud")) or alive(harness.LLM + "/health")
     try:
         q = harness.http_json(harness.COMFY + "/queue", timeout=2)
@@ -311,7 +352,7 @@ def metrics():
     return {"cpu": psutil.cpu_percent(), "ram": {"used": vm.used / 2**30, "total": vm.total / 2**30},
             "gpu": gpu_stats(), "gpuName": a["assess"].get("gpu"), "cores": a["hw"].get("cores"),
             "unified": a["assess"]["mode"] == "unified",
-            "llm": {"name": cur.get("label"), "up": llm_up, "active": harness.ACTIVITY["llm"] > 0,
+            "llm": {"name": cur.get("label"), "up": llm_up, "paused": bool(llm_state.get("paused")), "active": harness.ACTIVITY["llm"] > 0,
                     "cloud": cur.get("providerLabel") if cur.get("cloud") else None},
             "image": {"name": harness.image_model().get("label") if harness.SETTINGS.get("ckpt") else None, "up": comfy["up"],
                       "active": harness.ACTIVITY["image"] > 0 or comfy["running"] > 0, "queue": comfy["pending"]},
@@ -323,6 +364,17 @@ def run_project(s, pid, p):
     import checker
     r = checker.check(s, pid, p, config.PREVIEW_PORT)
     return {"code": r["code"], "output": r["output"] or "(aucune sortie)", "secs": r["secs"], "ok": r["ok"], "kind": r["kind"]}
+
+
+def wait_llm(emit):
+    """The assistant is paused for a Studio video or reloading after it: wait (with a status) instead of failing."""
+    t0 = time.time()
+    while (llm_state.get("paused") or (switch["phase"] == "loading" and switch["kind"] == "llm")) and time.time() - t0 < 900:
+        emit({"type": "status", "text": "l'assistant est en pause pendant une vidéo du Studio, il revient juste après"
+              if llm_state.get("paused") else "rechargement de l'assistant"})
+        time.sleep(3)
+    while switch["phase"] == "loading" and time.time() - t0 < 900:
+        time.sleep(1)
 
 
 def apply_config(s, new):
@@ -344,6 +396,30 @@ def run_scheduled(prompt, title):
     s.config["web"] = True  # tasks like "summarize today's news" need the web
     s.turn(prompt, [], None, None, lambda e: None)
     return s.id
+
+
+# ---------------------------------------------------------------- Studio: the assistant makes room for video models
+def pause_llm_for_video(m):
+    """A video model (20-40 GB) does not fit next to a local assistant: stop it during the video (x5 faster)."""
+    cur = LLMS.get(llm_state["name"] or "")
+    if not cur or cur.get("cloud") or llm_state.get("paused"):
+        return
+    mem = syscheck.current()["assess"].get("model_mem_gb", 0)
+    if cur["size_gb"] + m["size_gb"] + 4 <= mem:
+        return  # big machine: both fit
+    llm_state["paused"] = llm_state["name"]
+    llm_state["name"] = None
+    stop_llm()
+    print("Assistant en pause pendant la video")
+
+
+def resume_llm_after_video():
+    prev = llm_state.get("paused")
+    if not prev or any(j["state"] in ("queued", "running") for j in studio.jobs):
+        return
+    free_comfy_memory(timeout=30)  # unload the video model first
+    llm_state["paused"] = None
+    use_model(prev, auto=True)
 
 
 def decode_image(data_url):
@@ -372,6 +448,12 @@ def update_settings(new):
             harness.SETTINGS[k] = new[k][:8000].strip()
     if "mcp_on" in new:
         harness.SETTINGS["mcp_on"] = bool(new["mcp_on"])
+    if "llm_ctx" in new:  # 0 = automatic; takes effect at the next (re)start of the assistant
+        try:
+            n = int(new["llm_ctx"] or 0)
+            harness.SETTINGS["llm_ctx"] = min(CTX_MAX, max(CTX_MIN, n)) if n else 0
+        except (TypeError, ValueError):
+            pass
     harness.save_settings()
 
 
@@ -531,7 +613,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         known = {m["ckpt"] for m in catalog.CATALOG if m["kind"] == "image"}
         others = [c for c in checkpoints() if c not in known and not catalog.blocked(c)]
         self.send(200, {"settings": harness.SETTINGS, "catalog": catalog.listing(harness.SETTINGS),
-                        "otherCheckpoints": others, "active": {"llm": llm_state["name"], "voice": voice_model()[0]["id"]},
+                        "otherCheckpoints": others, "active": {"llm": llm_state["name"], "voice": voice_model()[0]["id"], "video": (studio.video_model() or {}).get("id"), "ctx": llm_state["ctx"],
+                                   "autoCtx": auto_ctx(catalog.BY_ID.get(llm_state["name"]) or {})},
                         "syscheck": syscheck.current(), "onboarded": bool(harness.SETTINGS.get("onboarded"))})
 
     def search_chats(self, path):  # full-text search in every conversation
@@ -593,6 +676,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                                              "model": llm_state["name"]},
                             "schedules": scheduler.list_(), "unread": scheduler.unread(),
                             "settings": {k: harness.SETTINGS.get(k) for k in ("custom", "searx", "mcp_on")}})
+
+    def studio_lib(self, path):
+        q = self.query()
+        vm = studio.video_model()
+        vids = [m for m in catalog.CATALOG if m["kind"] == "video"]
+        self.send(200, {"items": studio.library(q.get("kind", "all")), "jobs": studio.status(),
+                        "video": {"id": vm["id"], "label": vm["label"], "audio": vm.get("audio", False)} if vm else None,
+                        "videoModels": [{"id": m["id"], "label": m["label"], "installed": catalog.installed(m), "size_gb": m["size_gb"],
+                                         "audio": m.get("audio", False), "job": catalog.jobs.get(m["id"])} for m in vids],
+                        "image": harness.image_model().get("label") if harness.SETTINGS.get("ckpt") else None,
+                        "paused": bool(llm_state.get("paused"))})
+
+    def studio_file(self, path):
+        p = studio.file_path(path[len("/api/studio/file/"):])
+        if not p:
+            return self.send(404, {"error": "introuvable"})
+        ctype = "video/mp4" if p.endswith(".mp4") else "video/webm" if p.endswith(".webm") else "image/png"
+        size = os.path.getsize(p)
+        rng = re.match(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
+        with open(p, "rb") as f:
+            if rng and ctype.startswith("video"):  # seeking in the <video> player
+                a = int(rng[1] or 0)
+                b = min(size - 1, int(rng[2]) if rng[2] else size - 1)
+                f.seek(a)
+                data = f.read(b - a + 1)
+                self.send_response(206)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Range", f"bytes {a}-{b}/{size}")
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+            self.send(200, f.read(), ctype, [("Accept-Ranges", "bytes"), ("Cache-Control", "max-age=86400")])
 
     def tts_status(self, path):
         import tts
@@ -807,6 +924,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(409, {"error": str(e)})
         self.send(200, wav, "audio/wav")
 
+    def studio_post(self, path):
+        b = self.body()
+        act = path.rsplit("/", 1)[-1]
+        try:
+            if act == "generate":
+                return self.send(200, studio.submit(b.get("mode", "image"), b.get("prompt", ""), b.get("aspect", "16:9"),
+                                                    b.get("seconds", 5), b.get("source"), b.get("enhance", True)))
+            if act == "delete":
+                return self.send(200, {"ok": studio.delete(b.get("id"))})
+            if act == "cancel":
+                j = next((j for j in studio.jobs if j["id"] == b.get("id") and j["state"] == "queued"), None)
+                if j:
+                    j.update(state="error", error="annulé", ended=time.time())
+                return self.send(200, {"ok": bool(j)})
+        except ValueError as e:
+            return self.send(400, {"error": str(e)})
+        self.send(404, {"error": "introuvable"})
+
     def tts_install(self, path):
         import tts
         tts.install(self.body().get("voice"))
@@ -852,6 +987,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def use(self, path):
         self.send(200, {"ok": use_model(self.body().get("id"))})
+
+    def restart(self, path):
+        """{service: "llm" | "comfy", ctx?: tokens}: restarts a service (the assistant reloads with the saved context)."""
+        b = self.body()
+        if b.get("service") == "comfy":
+            threading.Thread(target=restart_comfy, daemon=True).start()
+            return self.send(200, {"ok": True})
+        if b.get("service") != "llm":
+            return self.send(400, {"ok": False, "error": "service inconnu"})
+        if "ctx" in b:
+            update_settings({"llm_ctx": b["ctx"]})
+        mid = llm_state["name"] or harness.SETTINGS.get("llm")
+        m = catalog.BY_ID.get(mid)
+        if not m or m.get("cloud"):
+            return self.send(200, {"ok": False, "error": "Aucun assistant local à redémarrer."})
+        self.send(200, {"ok": use_model(mid), "label": m["label"]})  # same model: unload, then load with the new context
 
     def attach_add(self, path):  # {name, type, data: base64}: text read in the background
         b = self.body()
@@ -932,6 +1083,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             apply_config(s, b["config"])
         emit = self.stream()
         emit({"type": "ack", "id": s.id, "busy": s.lock.locked()})  # received by the server
+        wait_llm(emit)
         if not llm_state["name"]:
             emit({"type": "error", "text": NO_ASSISTANT})
             emit({"type": "done"})
@@ -988,11 +1140,12 @@ GET = {"/": Handler.page, "/index.html": Handler.page, "/logo.png": Handler.logo
        "/api/attach": Handler.attach_status, "/api/cloud": _json(cloud.status), "/api/cloud/models": Handler.cloud_models,
        "/api/version": _json(updater.status), "/api/switch": Handler.switch_state,
        "/api/hf/search": Handler.hf, "/api/hf/files": Handler.hf, "/api/search": Handler.search_chats,
-       "/api/export": Handler.export, "/api/workspace": Handler.workspace_get, "/api/tts": Handler.tts_status}
-GET_PREFIX = [("/api/img/", Handler.image), ("/vendor/", Handler.vendor)]
+       "/api/export": Handler.export, "/api/workspace": Handler.workspace_get, "/api/tts": Handler.tts_status,
+       "/api/studio": Handler.studio_lib}
+GET_PREFIX = [("/api/img/", Handler.image), ("/vendor/", Handler.vendor), ("/api/studio/file/", Handler.studio_file)]
 POST = {"/api/new": Handler.new_session, "/api/delete": Handler.delete_session, "/api/install": Handler.install,
         "/api/syscheck": Handler.rescan, "/api/projrun": Handler.projrun, "/api/onboarded": Handler.onboarded,
-        "/api/use": Handler.use, "/api/attach": Handler.attach_add, "/api/cloud/key": Handler.cloud_key,
+        "/api/use": Handler.use, "/api/restart": Handler.restart,"/api/attach": Handler.attach_add, "/api/cloud/key": Handler.cloud_key,
         "/api/cloud/remove": Handler.cloud_remove, "/api/cloud/add": Handler.cloud_add,
         "/api/localscan": Handler.localscan_start, "/api/localscan/use": Handler.localscan_use,
         "/api/version/check": Handler.version_check, "/api/update": Handler.update, "/api/hf/install": Handler.hf_install,
@@ -1000,7 +1153,7 @@ POST = {"/api/new": Handler.new_session, "/api/delete": Handler.delete_session, 
         "/api/import": Handler.import_chat, "/api/meta": Handler.chat_meta, "/api/config": Handler.chat_config,
         "/api/version/switch": Handler.version, "/api/redo": Handler.redo, "/api/workspace": Handler.workspace_save,
         "/api/tts": Handler.tts_speak, "/api/tts/install": Handler.tts_install}
-POST_PREFIX = [("/api/transcribe", Handler.transcribe), ("/api/bot/", Handler.bot)]
+POST_PREFIX = [("/api/transcribe", Handler.transcribe), ("/api/bot/", Handler.bot), ("/api/studio/", Handler.studio_post)]
 
 
 class PreviewHandler(Handler):
@@ -1075,6 +1228,7 @@ def main():
     openai_api.active_model = lambda: (llm_state["name"], LLMS[llm_state["name"]]["label"]) if llm_state["name"] in LLMS else None
     threading.Thread(target=mcp.start_all, daemon=True).start()
     scheduler.start(run_scheduled)
+    studio.hooks.update(before_video=pause_llm_for_video, after_queue=resume_llm_after_video)
     preview = Server(("127.0.0.1", config.PREVIEW_PORT), PreviewHandler)
     threading.Thread(target=preview.serve_forever, daemon=True).start()
     print(f"Sparky {updater.current()} : http://127.0.0.1:{a.port}")

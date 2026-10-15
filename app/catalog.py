@@ -84,6 +84,37 @@ def klein():
             "desc": "Images en ~3 s : rapide, texte lisible, retouche par instruction."}
 
 
+LTX = "Lightricks/LTX-2.5"
+WAN = "Comfy-Org/Wan_2.2_ComfyUI_Repackaged"
+
+
+def ltx():
+    """LTX-2.5 22B distilled (int8): video with synchronized sound, 8 steps; ~40 s for 4 s of 768p on an RTX Spark."""
+    names = {"unet": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+             "clip": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+             "vae": "ltx-2.5-video-vae-bf16.safetensors", "audio_vae": "ltx-2.5-audio-vae-bf16.safetensors"}
+    files = [(LTX, "diffusion_models/" + names["unet"], os.path.join(CM, "diffusion_models", names["unet"])),
+             (LTX, "text_encoders/" + names["clip"], os.path.join(CM, "text_encoders", names["clip"])),
+             (LTX, "vae/" + names["vae"], os.path.join(CM, "vae", names["vae"])),
+             (LTX, "vae/" + names["audio_vae"], os.path.join(CM, "vae", names["audio_vae"]))]
+    return {"id": "ltx25", "kind": "video", "engine": "ltx", "label": "LTX-2.5 22B", "quality": 5, "style": "video + son",
+            "files": files, "size_gb": 38.7, "ckpt": "ltx25", "repo": LTX, "est_secs": 60, "est_secs_per_s": 10,
+            "long_side": 1024, "audio": True, **names,
+            "desc": "Vidéo avec le son (ambiance, voix, musique), texte ou image vers vidéo, jusqu'à 10 s."}
+
+
+def wan5b():
+    """Wan 2.2 TI2V 5B: lighter video model (text or image to video, 720p, no sound)."""
+    names = {"unet": "wan2.2_ti2v_5B_fp16.safetensors", "clip": "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "vae": "wan2.2_vae.safetensors"}
+    files = [(WAN, "split_files/diffusion_models/" + names["unet"], os.path.join(CM, "diffusion_models", names["unet"])),
+             (WAN, "split_files/text_encoders/" + names["clip"], os.path.join(CM, "text_encoders", names["clip"])),
+             (WAN, "split_files/vae/" + names["vae"], os.path.join(CM, "vae", names["vae"]))]
+    return {"id": "wan22-5b", "kind": "video", "engine": "wan", "label": "Wan 2.2 5B", "quality": 3, "style": "vidéo",
+            "files": files, "size_gb": 18.2, "ckpt": "wan22-5b", "repo": WAN, "est_secs": 150, "est_secs_per_s": 30,
+            "long_side": 1280, "audio": False, **names,
+            "desc": "Vidéo plus légère (sans le son), texte ou image vers vidéo."}
+
+
 WHISPER_FILES = ("config.json", "generation_config.json", "preprocessor_config.json", "tokenizer.json", "tokenizer_config.json",
                  "vocab.json", "merges.txt", "normalizer.json", "added_tokens.json", "special_tokens_map.json", "model.safetensors")
 
@@ -136,6 +167,8 @@ CATALOG = [
          6.6, style="photo", desc="Photo réaliste (SDXL), léger."),
     ckpt("animagine", "Animagine XL 4.0", 4, "cagliostrolab/animagine-xl-4.0", "animagine-xl-4.0-opt.safetensors",
          6.5, style="illustration", desc="Illustration, anime, BD (SDXL)."),
+    ltx(),
+    wan5b(),
 ]
 BY_ID = {m["id"]: m for m in CATALOG}
 jobs = {}  # id -> {"done": bytes, "total": bytes, "state": "running|ok|error", "error": str}
@@ -187,6 +220,10 @@ def indicators(m, measured=None, sysinfo=None):
     if m["kind"] in ("voice", "embed"):
         secs = measured or (m["gpu_secs"] if a["mode"] != "cpu" else m["cpu_secs"])
         return {"speed": 3 if secs <= 3 else 2 if secs <= 10 else 1, "fit": 2, "secs": round(secs, 1), "measured": bool(measured)}
+    if m["kind"] == "video":  # the assistant is paused during a video: the model gets the whole memory (and offloads)
+        secs = (measured * 5 + 20) if measured else m["est_secs"] * (230 / max(bw, 60)) ** 0.7  # for 5 s of video
+        fit = 2 if m["size_gb"] + 4 <= mem else 1 if m["size_gb"] <= mem * 1.6 else 0
+        return {"speed": 3 if secs <= 60 else 2 if secs <= 180 else 1, "fit": fit, "secs": round(secs), "measured": bool(measured)}
     secs = measured or m.get("est_secs", 15) * (230 / max(bw, 60)) ** 0.7
     fit = 2 if m["size_gb"] + 6 <= mem else 1 if m["size_gb"] <= mem + 2 else 0
     return {"speed": 3 if secs <= 12 else 2 if secs <= 30 else 1, "fit": fit, "secs": round(secs), "measured": bool(measured)}
@@ -247,7 +284,8 @@ def listing(settings):
     rec = set(filter(None, info.get("recommended", {}).values()))
     out = []
     for m in CATALOG:
-        meas = settings.get("speed", {}).get(m["id"] if m["kind"] == "llm" else "img:" + m["ckpt"])
+        key = m["id"] if m["kind"] == "llm" else ("vid:" if m["kind"] == "video" else "img:") + m["ckpt"]
+        meas = settings.get("speed", {}).get(key)
         inst = installed(m)  # checks up to 11 files: once per model
         vis = has_vision(m) if inst else m.get("vision", False)
         out.append({k: m.get(k) for k in ("id", "kind", "label", "quality", "size_gb", "desc", "repo", "ckpt")}

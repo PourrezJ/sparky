@@ -572,6 +572,64 @@ sup.cite{display:inline-grid;place-items:center;min-width:16px;height:16px;paddi
 #sysd{position:fixed;inset:0;background:#000a;display:none;place-items:center;z-index:14}
 #sysd .card{background:var(--s2);border-radius:16px;width:min(560px,94vw);padding:20px}
 #sysd h3{margin:0 0 6px;font-weight:600}#sysd textarea{width:100%;min-height:160px}
+
+/* ---- Studio: media library + prompt bar (image, video, image -> video) */
+#studio{display:none;flex:1;min-height:0;flex-direction:column;position:relative}
+body.studiomode #studio{display:flex}
+body.studiomode #scroll,body.studiomode footer,body.studiomode #art,body.studiomode #bot{display:none!important}
+.sth{display:flex;align-items:center;gap:12px;padding:10px 24px 4px;flex-wrap:wrap}
+.sth h2{margin:0;font-size:20px;font-weight:650}.sth .chips{margin:0}.sth .sp{flex:1}
+#stInfo{font-size:12.5px;color:var(--dim)}
+#stScroll{flex:1;overflow-y:auto;padding:10px 24px 230px}
+#stGrid{column-width:250px;column-gap:12px}
+.stc{break-inside:avoid;margin:0 0 12px;position:relative;border-radius:14px;overflow:hidden;background:var(--s1);cursor:pointer;border:1px solid var(--line)}
+.stc img,.stc video{display:block;width:100%;height:auto}
+.stc .bd{position:absolute;left:8px;top:8px;display:flex;gap:5px}
+.stc .bd span{background:#000a;color:#fff;font-size:11px;padding:2px 7px;border-radius:9px;display:flex;align-items:center;gap:4px;backdrop-filter:blur(4px)}
+.stc .ov{position:absolute;inset:auto 0 0 0;padding:28px 10px 8px;background:linear-gradient(transparent,#000c);color:#fff;font-size:12px;opacity:0;transition:opacity .15s;display:flex;align-items:flex-end;gap:6px}
+.stc:hover .ov{opacity:1}.stc .ov span{flex:1;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.stc .ov button{background:#fff2;color:#fff;border-radius:8px;padding:4px 8px;font-size:11.5px;white-space:nowrap;display:flex;align-items:center;gap:4px}
+.stc .ov button:hover{background:#fff4}
+.stj{break-inside:avoid;margin:0 0 12px;border-radius:14px;border:1px dashed var(--s4);background:var(--s0);padding:14px;display:flex;flex-direction:column;gap:8px;aspect-ratio:16/10;justify-content:center}
+.stj.err{border-color:var(--bad)}
+.stj .r1{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:550}.stj .r1 .spin{width:14px;height:14px}
+.stj p{margin:0;font-size:12.5px;color:var(--mut);overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.stj .bar{height:4px;border-radius:2px;background:var(--s3);overflow:hidden}.stj .bar span{display:block;height:100%;background:linear-gradient(90deg,#5aa9ff,#8c7cf0);transition:width .8s}
+.stj small{font-size:11.5px;color:var(--dim)}.stj .x{align-self:flex-start;font-size:12px;color:var(--mut);padding:2px 8px;border-radius:8px;background:var(--s2)}
+.stempty{color:var(--mut);text-align:center;padding:70px 20px;font-size:14px;line-height:1.6}
+.stempty b{display:block;font-size:20px;color:var(--txt);margin-bottom:6px}
+#stBar{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);width:min(820px,calc(100% - 32px));background:var(--bub);border:1px solid var(--line);border-radius:22px;padding:10px 12px;box-shadow:0 12px 40px #0006;display:flex;flex-direction:column;gap:8px}
+#stP{background:none;border:0;outline:none;color:var(--txt);font:inherit;font-size:15px;resize:none;min-height:24px;max-height:160px;padding:4px 6px}
+.strow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.strow .seg{display:flex;background:var(--s2);border-radius:14px;padding:3px}
+.strow .seg button{padding:4px 12px;border-radius:11px;font-size:13px;color:var(--mut);display:flex;align-items:center;gap:5px}
+.strow .seg button.on{background:var(--inv-bg);color:var(--inv-fg)}
+.strow select{background:var(--s2);color:var(--txt);border:0;border-radius:12px;padding:5px 8px;font:inherit;font-size:12.5px}
+.strow .tg{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--mut);cursor:pointer;padding:4px 8px;border-radius:12px}
+.strow .tg:hover,.strow .ib2:hover{background:var(--hov)}
+.strow .ib2{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--mut);padding:5px 9px;border-radius:12px}
+.strow .sp{flex:1}
+#stGo{background:var(--inv-bg);color:var(--inv-fg);border-radius:16px;padding:7px 18px;font-weight:600;font-size:13.5px}
+#stGo:disabled{opacity:.4}
+#stSrc{display:none;align-items:center;gap:8px;font-size:12.5px;color:var(--mut)}
+#stSrc img{width:54px;height:54px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+#stSrc button{color:var(--mut);padding:2px 8px;border-radius:8px;background:var(--s2)}
+#stNote{font-size:12.5px;color:var(--mut);display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 6px}
+#stNote button{padding:4px 10px;border-radius:12px;background:var(--s3);font-size:12px}
+#stNote button:hover{background:var(--inv-bg);color:var(--inv-fg)}
+#stView{position:fixed;inset:0;background:#000d;z-index:20;display:none;align-items:stretch}
+#stView.open{display:flex}
+#stView .med{flex:1;display:grid;place-items:center;padding:24px;min-width:0}
+#stView .med img,#stView .med video{max-width:100%;max-height:calc(100vh - 48px);border-radius:10px}
+#stView aside{width:min(340px,40vw);background:var(--s1);padding:20px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+#stView aside h3{margin:0;font-size:15px}#stView aside p{margin:0;font-size:13.5px;line-height:1.5;color:var(--txt2);white-space:pre-wrap}
+#stView aside small{color:var(--dim);font-size:12px;line-height:1.6}
+#stView aside .acts{display:flex;flex-direction:column;gap:6px;margin-top:auto}
+#stView aside .acts button,#stView aside .acts a{padding:8px 12px;border-radius:10px;background:var(--s3);font-size:13.5px;text-align:left;color:var(--txt);text-decoration:none;display:flex;align-items:center;gap:8px}
+#stView aside .acts button:hover,#stView aside .acts a:hover{background:var(--inv-bg);color:var(--inv-fg)}
+#stView aside .acts .bad:hover{background:var(--bad);color:#fff}
+#stView .x{position:absolute;top:12px;left:14px;color:#fff;font-size:22px;padding:4px 10px;border-radius:10px;background:#0006}
+@media (max-width:760px){#stView{flex-direction:column}#stView aside{width:auto;max-height:45vh}}
 </style>
 <link rel="stylesheet" href="/vendor/katex.min.css">
 <script src="/vendor/marked.min.js"></script><script src="/vendor/purify.min.js"></script><script src="/vendor/katex.min.js"></script><script src="/vendor/highlight.min.js"></script>
@@ -585,6 +643,7 @@ sup.cite{display:inline-grid;place-items:center;min-width:16px;height:16px;paddi
     <button class="ib" id="new" title="Nouvelle conversation"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
   </div>
   <button class="nav" id="botNav" title="Un compagnon qui apprend à te connaître"><span class="mini"></span><span>Sparky Bot</span><span class="beta">bêta</span></button>
+  <button class="nav" id="stNav" title="Tes images et vidéos : génère, anime une image"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3z"/></svg><span>Studio</span></button>
   <button class="nav" id="eph" title="Rien n'est enregistré"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z"/></svg>Conversation éphémère</button>
   <button class="nav" id="wsNav" title="Assistants, documents, prompts, outils, tâches, API"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg><span>Espace de travail</span><span class="bdg2" id="wsBdg"></span></button>
   <div id="srch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="cq" placeholder="Rechercher dans les conversations"><button id="impBtn" title="Importer une conversation (JSON)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 15V3m0 12-4-4m4 4 4-4M4 20h16"/></svg></button><input type="file" id="impFile" accept=".json,application/json" hidden></div>
@@ -631,13 +690,34 @@ sup.cite{display:inline-grid;place-items:center;min-width:16px;height:16px;paddi
       <div id="bpane"></div>
     </aside>
   </div>
+  <div id="studio">
+    <div class="sth"><h2>Studio</h2>
+      <div class="chips" id="stF"><button data-f="all" class="on">Tout</button><button data-f="image">Images</button><button data-f="video">Vidéos</button></div>
+      <span class="sp"></span><span id="stInfo"></span></div>
+    <div id="stScroll"><div id="stGrid"></div></div>
+    <div id="stBar">
+      <div id="stSrc"><img alt=""><span>Image de départ : la vidéo l'anime</span><button id="stSrcX">Retirer</button></div>
+      <textarea id="stP" rows="1" placeholder="Décris une image ou une vidéo…"></textarea>
+      <div id="stNote"></div>
+      <div class="strow">
+        <div class="seg" id="stMode"><button data-m="image" class="on">Image</button><button data-m="video">Vidéo</button></div>
+        <select id="stAsp" title="Format"><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select>
+        <select id="stDur" title="Durée"><option value="3">3 s</option><option value="5" selected>5 s</option><option value="8">8 s</option><option value="10">10 s</option></select>
+        <button class="ib2" id="stUp" title="Partir d'une image (image → vidéo)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg><span>Depuis une image</span></button>
+        <input type="file" id="stFile" accept="image/*" hidden>
+        <label class="tg" title="L'assistant détaille ton idée (mouvement, caméra, lumière, sons) avant la génération"><input type="checkbox" id="stEnh" checked>Améliorer le prompt</label>
+        <span class="sp"></span>
+        <button id="stGo">Générer</button>
+      </div>
+    </div>
+  </div>
   <div id="lib"><div class="lw">
     <div class="lh"><h2>Bibliothèque de modèles</h2><span class="sp"></span>
       <div class="srch"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="Rechercher un modèle…" autocomplete="off"></div>
       <button class="ib" id="libx" title="Fermer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="chips" id="flt">
-      <button data-f="all" class="on">Tous</button><button data-f="installed">Installés</button><button data-f="llm">Assistants</button><button data-f="image">Images</button><button data-f="voice">Voix</button><button data-f="rec">Recommandés</button>
+      <button data-f="all" class="on">Tous</button><button data-f="installed">Installés</button><button data-f="llm">Assistants</button><button data-f="image">Images</button><button data-f="video">Vidéos</button><button data-f="voice">Voix</button><button data-f="rec">Recommandés</button>
     </div>
     <table class="lt"><thead><tr>
       <th data-s="label">Nom</th><th data-s="kind">Type</th><th data-s="size_gb" class="r">Taille</th>
@@ -690,6 +770,10 @@ sup.cite{display:inline-grid;place-items:center;min-width:16px;height:16px;paddi
   <div class="f"><label>Système</label><div class="sysline"><span id="sysSum">…</span><button id="sysAgain">Relancer l'analyse</button><button id="sysOpen">Détail</button></div></div>
   <div class="f"><label>Assistant</label><div class="sel"><select id="llmSel"></select><span class="ind" id="llmInd"></span></div></div>
   <div class="f"><label>Niveau de réflexion</label><div class="seg" id="thkSet"></div></div>
+  <div class="f"><label>Contexte de l'assistant</label>
+    <div class="sysline"><select id="ctxSel"><option value="0">Auto</option><option value="16384">16k</option><option value="32768">32k</option><option value="65536">64k</option><option value="131072">128k</option><option value="262144">256k</option></select>
+      <button id="ctxApply">Appliquer et redémarrer</button><button id="comfyRestart">Redémarrer ComfyUI</button></div>
+    <small id="ctxInfo" style="color:var(--mut)"></small></div>
   <div class="f"><label>Modèle d'image</label><div class="sel"><select id="imgSel"></select><span class="ind" id="imgInd"></span></div></div>
   <div class="f"><label>Modèles cloud (optionnel)</label><div id="cloudBox"></div></div>
   <button class="libopen" id="libOpen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Bibliothèque de modèles</span><small id="libCount"></small><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></button>
@@ -704,6 +788,8 @@ sup.cite{display:inline-grid;place-items:center;min-width:16px;height:16px;paddi
 </div></div>
 <div id="pick"></div>
 <div id="menu"></div>
+<div id="stView"><button class="x" id="stVx" title="Fermer">×</button><div class="med" id="stVm"></div><aside id="stVa"></aside></div>
+
 <div id="ws"><div class="lw">
   <div class="lh"><h2>Espace de travail</h2><span class="sp"></span><button class="ib" id="wsx" title="Fermer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
   <div class="chips" id="wsTabs"><button data-t="assistants">Assistants</button><button data-t="prompts">Prompts</button><button data-t="knowledge">Documents</button><button data-t="tools">Outils (MCP)</button><button data-t="tasks">Tâches programmées</button><button data-t="api">API</button><button data-t="prefs">Préférences</button></div>
@@ -752,6 +838,7 @@ const EN={
  'Tape un nom dans la recherche pour trouver d’autres modèles.':'Type a name in the search box to find more models.',
  "Sparky · tout tourne sur ta machine, rien n'est envoyé sur Internet.":'Sparky · everything runs on your machine, nothing is sent to the internet.',
  'écrit…':'writing…','Aperçu':'Preview','Système':'System',"Relancer l'analyse":'Scan again','Détail':'Details','Niveau de réflexion':'Thinking level',
+ "Contexte de l'assistant":'Assistant context',"Appliquer et redémarrer":'Apply and restart','Redémarrer ComfyUI':'Restart ComfyUI','Redémarrage…':'Restarting…',
  "Modèle d'image":'Image model','Étapes de génération':'Generation steps',"Essais max de l'agent":'Max agent attempts','Annuler':'Cancel','Enregistrer':'Save',
  'Langue':'Language','Bienvenue dans Sparky':'Welcome to Sparky',"Ton assistant IA privé : tout tourne sur cette machine.":'Your private AI assistant: everything runs on this machine.',
  "Ton assistant IA privé : tout tourne sur cette machine, rien n'est envoyé sur Internet.":'Your private AI assistant: everything runs on this machine, nothing is sent to the internet.',
@@ -850,6 +937,23 @@ const EN={
  'Exporte une conversation depuis son menu ⋯ dans la barre latérale. Importe un export Sparky (JSON) ou une liste de messages {role, content}.':'Export a conversation from its ⋯ menu in the sidebar. Import a Sparky export (JSON) or a list of {role, content} messages.',
  'Importer une conversation…':'Import a conversation…','Tâches':'Tasks','Configuration (mcp.json)':'Configuration (mcp.json)','Échec : ':'Failed: ',
  'Enregistrer et démarrer':'Save and start',
+ 'Studio':'Studio','Depuis une image':'From an image','Tout':'All','Vidéos':'Videos','Vidéo':'Video','Image de départ : la vidéo l\'anime':'Starting image: the video animates it',
+ 'Retirer':'Remove','Décris une image ou une vidéo…':'Describe an image or a video…','Durée':'Duration','Format':'Format',
+ "Partir d'une image (image → vidéo)":'Start from an image (image → video)',
+ "L'assistant détaille ton idée (mouvement, caméra, lumière, sons) avant la génération":'The assistant details your idea (motion, camera, light, sounds) before generating',
+ 'Améliorer le prompt':'Enhance prompt','Générer':'Generate','Images :':'Images:','Vidéo :':'Video:','Image → vidéo':'Image → video',
+ 'amélioration du prompt…':'enhancing the prompt…','l’assistant fait de la place (pause)…':'the assistant makes room (paused)…','génération de l’image…':'generating the image…',
+ 'génération de la vidéo…':'generating the video…','en attente…':'queued…','Masquer':'Hide','Ton studio est vide':'Your studio is empty',
+ 'Décris une image ou une vidéo en bas, ou pars d’une image pour l’animer. Tout ce que tu génères (ici et dans les conversations) apparaît ici.':'Describe an image or a video below, or start from an image to animate it. Everything you generate (here and in chats) shows up here.',
+ 'conversation':'chat','Animer':'Animate','Décris le mouvement, la caméra, les sons… (optionnel)':'Describe the motion, the camera, the sounds… (optional)',
+ 'Décris la scène, le mouvement, la caméra, les sons…':'Describe the scene, the motion, the camera, the sounds…','Décris une image…':'Describe an image…',
+ 'Aucun modèle vidéo installé.':'No video model installed.','Installer':'Install','avec le son':'with sound',
+ 'Pendant une vidéo, l’assistant local est mis en pause pour laisser la mémoire au modèle vidéo, puis il revient.':'During a video, the local assistant is paused to leave the memory to the video model, then it comes back.',
+ 'Prompt détaillé envoyé au modèle':'Detailed prompt sent to the model','généré en':'generated in','▶ Animer cette image':'▶ Animate this image',
+ 'Réutiliser le prompt':'Reuse the prompt','Ouvrir la conversation':'Open the chat','Supprimer ce média du studio ?':'Delete this media from the studio?',
+ 'Tes images et vidéos : génère, anime une image':'Your images and videos: generate, animate a picture','vidéo':'video','pour 5 s de vidéo':'for 5 s of video',
+ 'en pause (vidéo)':'paused (video)',"l'assistant est en pause pendant une vidéo du Studio, il revient juste après":'the assistant is paused during a Studio video, it comes back right after',
+ "rechargement de l'assistant":'reloading the assistant',
  'Thème':'Theme','Auto (comme Windows)':'Auto (follow Windows)','Clair':'Light','Sombre':'Dark',
  // projets
  'Test automatique : ça fonctionne':'Automatic test: it works','Test automatique : erreurs trouvées':'Automatic test: errors found','essai':'attempt',
@@ -1400,24 +1504,25 @@ const IC={
  img:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
  dl:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 20h16"/></svg>',
  ok:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m5 12 5 5 9-10"/></svg>',
+ vid:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3z"/></svg>',
  chev:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>'};
 const SPEEDC=['','#ff6b6b','#f5b84b','#3ecf8e'], FITC=['#ff6b6b','#f5b84b','#3ecf8e'];
 const tip=s=>String(s).replace(/"/g,'&quot;');
-function bolts(m){const t=(m.speed===3?'rapide':m.speed===2?'correct':'lent')+' sur ta machine'+(m.tps!=null?' · ~'+m.tps+' mots/s':' · ~'+m.secs+' s par image')+(m.measured?' (mesuré)':' (estimé)');
+function bolts(m){const t=(m.speed===3?'rapide':m.speed===2?'correct':'lent')+' sur ta machine'+(m.tps!=null?' · ~'+m.tps+' mots/s':' · ~'+m.secs+(m.kind==='video'?' s pour 5 s de vidéo':' s par image'))+(m.measured?' (mesuré)':' (estimé)');
   return '<span class="ic" title="'+tip(t)+'">'+[1,2,3].map(i=>IC.bolt(i<=m.speed?SPEEDC[m.speed]:'#444')).join('')+'</span>'}
 function stars(m){return '<span class="ic" title="'+tip('qualité '+m.quality+'/5'+(m.qualityGuess?' (estimée)':''))+'">'+[1,2,3,4,5].map(i=>IC.star(i<=m.quality?(m.qualityGuess?'#a08a52':'#e8c46a'):'#444')).join('')+'</span>'}
-function memi(m){const t=m.kind==='image'?(m.fit===2?'léger : tient avec l’assistant':'lourd : partage la mémoire avec l’assistant (plus lent si les deux tournent)'):m.fit===2?'tient en mémoire avec la génération d’images':m.fit===1?'juste : la génération d’images devra décharger le modèle':'trop gros pour cette machine';
+function memi(m){const t=m.kind==='video'?(m.fit===2?'tient en mémoire':m.fit===1?'lourd : l’assistant est mis en pause pendant une vidéo':'trop gros pour cette machine'):m.kind==='image'?(m.fit===2?'léger : tient avec l’assistant':'lourd : partage la mémoire avec l’assistant (plus lent si les deux tournent)'):m.fit===2?'tient en mémoire avec la génération d’images':m.fit===1?'juste : la génération d’images devra décharger le modèle':'trop gros pour cette machine';
   return '<span class="ic" title="'+tip(t)+'">'+IC.mem(FITC[m.fit])+'</span>'}
 function extras(m){return (m.kind==='llm'&&m.think?'<span class="ic" title="peut réfléchir avant de répondre">'+IC.brain('#b9adff')+'</span>':'')+(m.kind==='llm'&&m.vision?'<span class="ic" title="voit les images">'+IC.eye('#8fb8ff')+'</span>':'')}
 function inds(m){return bolts(m)+stars(m)+memi(m)+extras(m)}
 
 let SYS=null,ONB=true;
-async function loadCat(){const r=await(await fetch('/api/settings')).json();CAT=r.catalog;SET=r.settings;SYS=r.syscheck;ONB=r.onboarded;ACTIVE={llm:r.settings.llm,ckpt:r.settings.ckpt,voice:r.active.voice};
+async function loadCat(){const r=await(await fetch('/api/settings')).json();CAT=r.catalog;SET=r.settings;SYS=r.syscheck;ONB=r.onboarded;ACTIVE={llm:r.settings.llm,ckpt:r.settings.ckpt,voice:r.active.voice,video:r.active.video};
   // langue choisie à l'installation (ou sur un autre navigateur) : on s'aligne une fois
   if(SET.ui_lang&&SET.ui_lang!==LANG&&!sessionStorage.getItem('sparky.langsync')){sessionStorage.setItem('sparky.langsync','1');try{localStorage.setItem('sparky.lang',SET.ui_lang)}catch{}location.reload()}
   return r}
 let ACTIVE={};
-const isActive=m=>m.kind==='llm'?m.id===ACTIVE.llm:m.kind==='voice'?m.id===ACTIVE.voice:m.ckpt===ACTIVE.ckpt;
+const isActive=m=>m.kind==='llm'?m.id===ACTIVE.llm:m.kind==='voice'?m.id===ACTIVE.voice:m.kind==='video'?m.id===ACTIVE.video:m.ckpt===ACTIVE.ckpt;
 const recTag=m=>m.recommended?'<span class="rec" title="recommandé pour ta machine">recommandé</span>':'';
 
 // ---------- niveau de réflexion
@@ -1508,7 +1613,7 @@ async function renderLib(fetchIt){if(fetchIt!==false)await loadCat();
   if(!L.length)tb.innerHTML='<tr><td colspan="7" class="mute">Aucun modèle installé ou connu ne correspond. Regarde sur Hugging Face plus bas.</td></tr>';
   L.forEach(m=>{const tr=el('tr');
     tr.append(el('td','nm',esc(m.label)+recTag(m)+'<small>'+esc(m.desc||m.repo||'')+'</small>'));
-    tr.append(el('td','','<span class="ty">'+(m.kind==='llm'?IC.chat+'assistant':m.kind==='voice'?IC.mic+'voix':m.kind==='embed'?IC.brain('currentColor')+'mémoire':IC.img+'image')+'</span>'));
+    tr.append(el('td','','<span class="ty">'+(m.kind==='llm'?IC.chat+'assistant':m.kind==='voice'?IC.mic+'voix':m.kind==='embed'?IC.brain('currentColor')+'mémoire':m.kind==='video'?IC.vid+'vidéo':IC.img+'image')+'</span>'));
     tr.append(el('td','r',m.size_gb.toFixed(1)+' Go'));
     tr.append(el('td','',bolts(m)));tr.append(el('td','',stars(m)));tr.append(el('td','',memi(m)+extras(m)));
     const a=el('div','act'),j=m.job;
@@ -1564,7 +1669,7 @@ async function fillModelSelects(){await loadCat();
   const n=CAT.filter(m=>m.installed).length;$('libCount').textContent=n+' installés · '+(CAT.length-n)+' disponibles'}
 ['llmSel','imgSel'].forEach(id=>$(id).onchange=()=>{const m=CAT.find(c=>c.id===$(id).value);if(m&&!isActive(m)){$(id==='llmSel'?'llmInd':'imgInd').innerHTML=inds(m);useModel(m.id,m.label)}});
 function sysSummary(s){const a=s.assess;return '<b>'+esc(a.gpu||'Pas de GPU NVIDIA')+'</b> · '+s.hw.ram_gb.toFixed(0)+' Go · niveau <b>'+esc(a.tier_label)+'</b>'}
-async function openSettings(){$('set').style.display='grid';renderCloud();await fillModelSelects();$('steps').value=SET.steps;$('cfg').value=SET.cfg;$('maxs').value=SET.max_steps;$('autoT').checked=SET.autotest!==false;
+async function openSettings(){$('set').style.display='grid';renderCloud();await fillModelSelects();$('steps').value=SET.steps;$('cfg').value=SET.cfg;$('maxs').value=SET.max_steps;$('autoT').checked=SET.autotest!==false;ctxFill();
   $('sysSum').innerHTML=sysSummary(SYS);const cur=CAT.find(m=>m.kind==='llm'&&isActive(m));thinkSeg($('thkSet'),!!(cur&&cur.think))}
 $('openSet').onclick=openSettings;
 
@@ -1655,9 +1760,21 @@ $('wLib').onclick=()=>{closeWelcome();showLib(true)};
 function closeWelcome(){clearTimeout(welcTimer);clearTimeout(locTimer);$('welc').style.display='none';if(welcFirst)fetch('/api/onboarded',{method:'POST'})}
 $('wOk').onclick=closeWelcome;
 loadCat().then(()=>{if(!ONB||!CAT.some(m=>m.kind==='llm'&&m.installed))showWelcome(!ONB)});
+// ---------- contexte de l'assistant + redémarrage des services
+const kfmt=n=>n>=1024?Math.round(n/1024)+'k':String(n);
+async function ctxFill(){
+  const r=await(await fetch('/api/settings')).json(),a=r.active||{};$('ctxSel').value=String(r.settings.llm_ctx||0);
+  $('ctxInfo').textContent='En cours : '+(a.ctx?kfmt(a.ctx)+' tokens':'inconnu')+' · Auto = '+kfmt(a.autoCtx||0)+' selon la mémoire libre. Un contexte plus grand utilise plus de mémoire.'}
+$('ctxApply').onclick=async()=>{const b=$('ctxApply');b.disabled=true;
+  const r=await(await fetch('/api/restart',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:'llm',ctx:+$('ctxSel').value})})).json();
+  b.disabled=false;if(!r.ok){alert(r.error||'Impossible de redémarrer maintenant.');return}
+  $('set').style.display='none';showSwitch(r.label)};
+$('comfyRestart').onclick=async()=>{const b=$('comfyRestart');b.disabled=true;b.textContent='Redémarrage…';
+  await fetch('/api/restart',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:'comfy'})});
+  setTimeout(()=>{b.disabled=false;b.textContent='Redémarrer ComfyUI'},6000)};
 $('setx').onclick=()=>$('set').style.display='none';
 $('set').onclick=e=>{if(e.target.id==='set')$('set').style.display='none'};
-$('setok').onclick=async()=>{await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings:{steps:+$('steps').value,cfg:+$('cfg').value,max_steps:+$('maxs').value,autotest:$('autoT').checked}})});
+$('setok').onclick=async()=>{await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings:{steps:+$('steps').value,cfg:+$('cfg').value,max_steps:+$('maxs').value,autotest:$('autoT').checked,llm_ctx:+$('ctxSel').value}})});
   $('set').style.display='none'};
 
 // ---------- éditeur de zone
@@ -2018,6 +2135,91 @@ async function wsPrefs(B){const s=WS.settings;const f=el('div','wsf');
   const ib=el('button','wsbtn',tr('Importer une conversation…'));ib.onclick=()=>$('impFile').click();io.append(ib);B.append(io)}
 loadWS();setInterval(()=>{if(!document.hidden)loadWS()},60000);
 renderTools();
+
+// ==================================================================== Studio
+let ST={items:[],jobs:[],filt:'all',mode:'image',src:null,srcThumb:null,timer:0,data:null,doneIds:new Set()};
+const ICV={video:'<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg>',
+  sound:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>',
+  anim:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3v18l15-9z"/></svg>'};
+function setStudioMode(on){document.body.classList.toggle('studiomode',on);$('stNav').classList.toggle('on',on);
+  if(on){if(document.body.classList.contains('botmode'))setBotMode(false);$('eph').classList.remove('on');document.querySelectorAll('.cv').forEach(c=>c.classList.remove('on'));loadStudio(true);setTimeout(()=>$('stP').focus(),50)}
+  else clearTimeout(ST.timer);
+  try{localStorage.setItem('sparky.studio',on?'1':'0')}catch{}}
+$('stNav').onclick=()=>setStudioMode(true);
+$('botNav').addEventListener('click',()=>setStudioMode(false),true);
+['new','new2','eph'].forEach(id=>$(id).addEventListener('click',()=>setStudioMode(false),true));
+$('list').addEventListener('click',()=>setStudioMode(false),true);
+async function loadStudio(full){clearTimeout(ST.timer);
+  try{const d=await(await fetch('/api/studio')).json();ST.data=d;const was=ST.jobs.filter(j=>j.state==='running'||j.state==='queued').map(j=>j.id);
+    ST.jobs=d.jobs;const nowDone=d.jobs.filter(j=>j.state==='done'&&!ST.doneIds.has(j.id));nowDone.forEach(j=>ST.doneIds.add(j.id));
+    if(full||nowDone.length||JSON.stringify(ST.items.map(i=>i.id))!==JSON.stringify(d.items.map(i=>i.id))){ST.items=d.items;renderStudioGrid()}else renderJobs();
+    stNote();$('stInfo').textContent=(d.image?tr('Images :')+' '+d.image:'')+(d.video?'  ·  '+tr('Vidéo :')+' '+d.video.label+(d.video.audio?' 🔊':''):'')}
+  catch(e){}
+  if(document.body.classList.contains('studiomode'))ST.timer=setTimeout(loadStudio,ST.jobs.some(j=>j.state==='running'||j.state==='queued')||ST.data?.videoModels?.some(m=>m.job?.state==='running')?1500:10000)}
+function jobCard(j){const d=el('div','stj'+(j.state==='error'?' err':''));d.dataset.job=j.id;
+  const what=j.mode==='image'?tr('Image'):(j.hasSource||j.sourceThumb?tr('Image → vidéo'):tr('Vidéo'));
+  const st={prompt:'amélioration du prompt…',memory:'l’assistant fait de la place (pause)…',image:'génération de l’image…',video:'génération de la vidéo…'}[j.status]||(j.state==='queued'?'en attente…':'');
+  d.innerHTML='<div class="r1">'+(j.state==='error'?'⚠':'<span class="spin"></span>')+'<span>'+esc(what)+(j.mode==='video'?' · '+j.seconds+' s':'')+' · '+esc(j.aspect)+'</span></div>'
+    +'<p>'+esc(j.final_prompt||j.prompt)+'</p>'+(j.state==='error'?'<small style="color:var(--bad)">'+esc(j.error||'')+'</small>':
+    '<div class="bar"><span style="width:'+Math.round((j.progress||0.02)*100)+'%"></span></div><small>'+esc(tr(st))+(j.elapsed?' '+j.elapsed+' s'+(j.est?' / ~'+Math.round(j.est)+' s':''):'')+'</small>');
+  if(j.state==='queued'){const x=el('button','x',esc(tr('Annuler')));x.onclick=async e=>{e.stopPropagation();await post('/api/studio/cancel',{id:j.id});loadStudio()};d.append(x)}
+  if(j.state==='error'){const x=el('button','x',esc(tr('Masquer')));x.onclick=e=>{e.stopPropagation();j.state='hidden';ST.doneIds.add(j.id);d.remove()};d.append(x)}
+  return d}
+function renderJobs(){const g=$('stGrid');g.querySelectorAll('.stj').forEach(x=>x.remove());const first=g.firstChild;
+  ST.jobs.filter(j=>(j.state==='queued'||j.state==='running'||j.state==='error')&&j.state!=='hidden'&&!(j.state==='error'&&ST.doneIds.has(j.id))&&(ST.filt==='all'||ST.filt===(j.mode==='image'?'image':'video')))
+    .slice().reverse().forEach(j=>g.insertBefore(jobCard(j),first))}
+function renderStudioGrid(){const g=$('stGrid');g.innerHTML='';const L=ST.items.filter(i=>ST.filt==='all'||i.type===ST.filt);
+  if(!L.length&&!ST.jobs.some(j=>j.state==='running'||j.state==='queued')){g.innerHTML='<div class="stempty"><b>'+esc(tr('Ton studio est vide'))+'</b>'+esc(tr('Décris une image ou une vidéo en bas, ou pars d’une image pour l’animer. Tout ce que tu génères (ici et dans les conversations) apparaît ici.'))+'</div>';renderJobs();return}
+  L.forEach(it=>{const c=el('div','stc');c.dataset.id=it.id;
+    if(it.type==='video'){const v=document.createElement('video');v.src=it.url;v.muted=true;v.loop=true;v.playsInline=true;v.preload='metadata';if(it.poster)v.poster=it.poster;
+      c.onmouseenter=()=>v.play().catch(()=>{});c.onmouseleave=()=>{v.pause()};c.append(v)}
+    else{const i=new Image();i.loading='lazy';i.src=it.url;c.append(i)}
+    const bd=el('div','bd');if(it.type==='video')bd.append(el('span','',ICV.video+(it.seconds||'')+' s'+(it.audio?' '+ICV.sound:'')));if(it.source==='chat')bd.append(el('span','',esc(tr('conversation'))));c.append(bd);
+    const ov=el('div','ov');ov.append(el('span','',esc(it.prompt||'')));
+    if(it.type==='image'){const a=el('button','',ICV.anim+esc(tr('Animer')));a.onclick=e=>{e.stopPropagation();animate(it)};ov.append(a)}
+    c.append(ov);c.onclick=()=>viewItem(it);g.append(c)});
+  renderJobs()}
+$('stF').onclick=e=>{const b=e.target.closest('button');if(!b)return;ST.filt=b.dataset.f;[...$('stF').children].forEach(x=>x.classList.toggle('on',x===b));renderStudioGrid()};
+function setStMode(m){ST.mode=m;[...$('stMode').children].forEach(x=>x.classList.toggle('on',x.dataset.m===m));$('stDur').style.display=m==='video'?'':'none';
+  $('stP').placeholder=tr(m==='video'?(ST.src?'Décris le mouvement, la caméra, les sons… (optionnel)':'Décris la scène, le mouvement, la caméra, les sons…'):'Décris une image…');stNote();stUpd()}
+$('stMode').onclick=e=>{const b=e.target.closest('button');if(b)setStMode(b.dataset.m)};
+function setSrc(ref,thumb){ST.src=ref;ST.srcThumb=thumb;$('stSrc').style.display=ref?'flex':'none';if(ref){$('stSrc').querySelector('img').src=thumb;setStMode('video')}else setStMode(ST.mode);stUpd()}
+$('stSrcX').onclick=()=>setSrc(null);
+$('stUp').onclick=()=>$('stFile').click();
+$('stFile').onchange=async()=>{const f=$('stFile').files[0];$('stFile').value='';if(!f)return;const i=await loadImg(URL.createObjectURL(f));
+  const s=Math.min(1,1536/Math.max(i.naturalWidth,i.naturalHeight)),cv2=document.createElement('canvas');cv2.width=i.naturalWidth*s;cv2.height=i.naturalHeight*s;cv2.getContext('2d').drawImage(i,0,0,cv2.width,cv2.height);
+  const d=cv2.toDataURL('image/png');setSrc(d,d);const r=cv2.width/cv2.height;$('stAsp').value=r>1.5?'16:9':r>1.15?'4:3':r>0.87?'1:1':r>0.65?'3:4':'9:16'};
+function animate(it){setSrc(it.id,it.url);$('stView').classList.remove('open');$('stP').focus()}
+function stUpd(){$('stGo').disabled=!($('stP').value.trim()||(ST.mode==='video'&&ST.src));const t=$('stP');t.style.height='24px';t.style.height=Math.min(160,t.scrollHeight)+'px'}
+$('stP').addEventListener('input',stUpd);$('stP').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();stGo()}});
+$('stGo').onclick=stGo;
+async function stGo(){if($('stGo').disabled)return;const body={mode:ST.mode,prompt:$('stP').value.trim(),aspect:$('stAsp').value,seconds:+$('stDur').value,source:ST.src,enhance:$('stEnh').checked};
+  if(ST.mode==='video'&&!ST.data?.video){stNote(true);return}
+  const r=await post('/api/studio/generate',body);const j=await r.json();if(!r.ok)return alert(j.error||'Erreur');
+  $('stP').value='';setSrc(null);stUpd();loadStudio()}
+function stNote(force){const n=$('stNote'),d=ST.data;if(!d){n.style.display='none';return}n.innerHTML='';
+  if(ST.mode==='video'&&!d.video){n.style.display='flex';n.append(el('span','',esc(tr('Aucun modèle vidéo installé.'))));
+    d.videoModels.forEach(m=>{const j=m.job;if(j?.state==='running'){n.append(el('span','',esc(m.label)+' : '+Math.round((j.done||0)/Math.max(1,j.total||1)*100)+' %'));return}
+      const b=el('button','',esc(tr('Installer'))+' '+esc(m.label)+' ('+m.size_gb+' Go'+(m.audio?', '+tr('avec le son'):'')+')');b.onclick=async()=>{await post('/api/install',{id:m.id});loadStudio()};n.append(b)});return}
+  if(ST.mode==='video'&&d.video&&!d.paused){n.style.display='flex';n.append(el('span','',esc(tr('Pendant une vidéo, l’assistant local est mis en pause pour laisser la mémoire au modèle vidéo, puis il revient.'))))}
+  else n.style.display='none'}
+function viewItem(it){const V=$('stView'),m=$('stVm'),a=$('stVa');m.innerHTML='';a.innerHTML='';
+  if(it.type==='video'){const v=document.createElement('video');v.src=it.url;v.controls=true;v.autoplay=true;v.loop=true;if(it.poster)v.poster=it.poster;m.append(v)}else{const i=new Image();i.src=it.url;m.append(i)}
+  a.append(el('h3','',esc(tr(it.type==='video'?'Vidéo':'Image'))));a.append(el('p','',esc(it.prompt||'')));
+  if(it.final_prompt&&it.final_prompt!==it.prompt){const d=el('details');d.innerHTML='<summary style="cursor:pointer;font-size:12.5px;color:var(--mut)">'+esc(tr('Prompt détaillé envoyé au modèle'))+'</summary><p style="font-size:12.5px;color:var(--mut);margin-top:6px">'+esc(it.final_prompt)+'</p>';a.append(d)}
+  a.append(el('small','',[it.model,it.width&&it.height?it.width+'×'+it.height:'',it.seconds?it.seconds+' s':'',it.secs?tr('généré en')+' '+it.secs+' s':'',new Date(it.created*1000).toLocaleString()].filter(Boolean).map(esc).join(' · ')));
+  const acts=el('div','acts');const B=(t,fn,cls)=>{const b=el('button',cls||'',esc(tr(t)));b.onclick=fn;acts.append(b)};
+  if(it.type==='image')B('▶ Animer cette image',()=>animate(it));
+  B('Réutiliser le prompt',()=>{$('stP').value=it.prompt||'';setStMode(it.type);V.classList.remove('open');stUpd();$('stP').focus()});
+  const dl=el('a','',esc(tr('Télécharger')));dl.href=it.url;dl.download='sparky_'+it.id+(it.type==='video'?'.mp4':'.png');acts.append(dl);
+  if(it.source==='chat')B('Ouvrir la conversation',()=>{V.classList.remove('open');setStudioMode(false);open_(it.session)});
+  else B('Supprimer',async()=>{if(!confirm(tr('Supprimer ce média du studio ?')))return;await post('/api/studio/delete',{id:it.id});V.classList.remove('open');loadStudio(true)},'bad');
+  a.append(acts);V.classList.add('open')}
+$('stVx').onclick=()=>{$('stView').classList.remove('open');$('stVm').innerHTML=''};
+$('stView').onclick=e=>{if(e.target.id==='stView'||e.target.id==='stVm'){$('stView').classList.remove('open');$('stVm').innerHTML=''}};
+addEventListener('keydown',e=>{if(e.key==='Escape'&&$('stView').classList.contains('open')){$('stView').classList.remove('open');$('stVm').innerHTML=''}});
+setStMode('image');
+try{if(localStorage.getItem('sparky.studio')==='1')setStudioMode(true)}catch{}
 </script>
 </body>
 </html>

@@ -43,7 +43,8 @@ class busy:
 
 SETTINGS_FILE = os.path.join(DATA, "settings.json")
 SETTINGS = {"llm": None, "ckpt": None, "steps": 30, "cfg": 5.5, "max_steps": 6, "think": "off", "ui_lang": "en",
-            "autotest": True, "custom": "", "searx": "", "mcp_on": True}
+            "autotest": True, "custom": "", "searx": "", "mcp_on": True,
+            "llm_ctx": 0}  # context window of the local assistant, in tokens (0 = automatic, from the memory left)
 INFO_TOOLS = ("search", "fetch", "docs", "tool")  # read-only tools: their results come back as notes
 MAX_INFO = 6  # read-only tool calls per message
 

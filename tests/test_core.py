@@ -29,7 +29,7 @@ def test_catalog_ids_are_unique_and_complete():
     ids = [m["id"] for m in catalog.CATALOG]
     assert len(ids) == len(set(ids))
     for m in catalog.CATALOG:
-        assert m["kind"] in ("llm", "image", "voice", "embed") and m["label"] and m["size_gb"] > 0
+        assert m["kind"] in ("llm", "image", "voice", "embed", "video") and m["label"] and m["size_gb"] > 0
 
 
 def test_nothing_is_installed_on_a_fresh_machine():
