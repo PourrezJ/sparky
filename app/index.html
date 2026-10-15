@@ -630,6 +630,28 @@ body.studiomode #scroll,body.studiomode footer,body.studiomode #art,body.studiom
 #stView aside .acts .bad:hover{background:var(--bad);color:#fff}
 #stView .x{position:absolute;top:12px;left:14px;color:#fff;font-size:22px;padding:4px 10px;border-radius:10px;background:#0006}
 @media (max-width:760px){#stView{flex-direction:column}#stView aside{width:auto;max-height:45vh}}
+
+/* ---- computer mode: actions on the PC and approval cards */
+.pcs{border:1px solid var(--line);border-radius:12px;background:var(--s0);padding:8px 12px;font-size:13px;display:flex;flex-direction:column;gap:4px}
+.pcs .r{display:flex;align-items:center;gap:8px}.pcs .r b{font-weight:600}.pcs .r .sp{flex:1}
+.pcs code{font:12px ui-monospace,Consolas,monospace;color:var(--txt2);word-break:break-all;white-space:pre-wrap}
+.pcs .ic{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;background:var(--s2);flex:none}
+.pcs.read .ic{color:var(--blue)}.pcs.write .ic{color:var(--warn)}.pcs.danger .ic{color:var(--bad)}
+.pcs .st{font-size:12px;color:var(--dim)}.pcs .st.ok{color:var(--ok)}.pcs .st.err{color:var(--bad)}
+.pcs details summary{cursor:pointer;font-size:12px;color:var(--mut)}
+.pcs pre{margin:6px 0 0;max-height:260px;overflow:auto;background:var(--s1);border-radius:8px;padding:8px;font:12px ui-monospace,Consolas,monospace;white-space:pre-wrap;color:var(--txt2)}
+.pcs img{max-width:100%;border-radius:8px;margin-top:6px;cursor:zoom-in}
+.appr{border:1.5px solid var(--warn);border-radius:14px;background:var(--s1);padding:12px 14px;display:flex;flex-direction:column;gap:8px;font-size:13.5px}
+.appr.danger{border-color:var(--bad)}.appr.done{border-color:var(--line);opacity:.85}
+.appr .h{display:flex;align-items:center;gap:8px;font-weight:600}
+.appr code{display:block;font:12.5px ui-monospace,Consolas,monospace;background:var(--s0);border-radius:8px;padding:8px 10px;word-break:break-all;white-space:pre-wrap;color:var(--txt)}
+.appr .b{display:flex;gap:6px;flex-wrap:wrap}
+.appr .b button{padding:6px 14px;border-radius:16px;background:var(--s3);font-size:13px}
+.appr .b button.go{background:var(--inv-bg);color:var(--inv-fg)}.appr .b button.no:hover{background:var(--bad);color:#fff}
+.appr .res{font-size:12.5px;color:var(--mut)}
+#tools button.pc-full{color:#fff;background:var(--bad);border-color:transparent}
+#menu .lv small{display:block;color:var(--dim);font-size:11.5px;font-weight:400}
+#menu .lv{align-items:flex-start!important}
 </style>
 <link rel="stylesheet" href="/vendor/katex.min.css">
 <script src="/vendor/marked.min.js"></script><script src="/vendor/purify.min.js"></script><script src="/vendor/katex.min.js"></script><script src="/vendor/highlight.min.js"></script>
@@ -957,6 +979,21 @@ const EN={
  "Vidéo avec le son (ambiance, voix, musique), texte ou image vers vidéo, jusqu'à 10 s.":'Video with sound (ambience, voices, music), text or image to video, up to 10 s.',
  'Vidéo plus légère (sans le son), texte ou image vers vidéo.':'Lighter video (no sound), text or image to video.','inconnu':'unknown',
  'lourd : l’assistant est mis en pause pendant une vidéo':'heavy: the assistant is paused during a video','tient en mémoire':'fits in memory',
+ 'Accès à l’ordinateur':'Computer access','Désactivé':'Off','L’assistant n’accède pas à ton ordinateur':'The assistant cannot access your computer',
+ 'Voir les dossiers et fichiers, ne rien modifier':'See folders and files, change nothing',
+ 'Lecture libre, demander pour les changements':'Read freely, ask before changes',
+ 'Lit librement ; te demande avant d’écrire, déplacer, supprimer, ouvrir ou lancer une commande':'Reads freely; asks you before writing, moving, deleting, opening or running a command',
+ 'Tout demander':'Ask for everything','Te demande avant chaque action, même pour lire':'Asks you before every action, even reading',
+ 'Accès complet':'Full access','Agit sans demander (dossiers système protégés, corbeille seulement)':'Acts without asking (system folders protected, Recycle Bin only)',
+ 'Ordinateur':'Computer','Lecture libre':'Read freely',
+ 'Laisser Sparky consulter et agir sur ton ordinateur (fichiers, dossiers, bureau, applications)':'Let Sparky look at and act on your computer (files, folders, desktop, apps)',
+ 'Accès complet : Sparky pourra modifier, déplacer, mettre à la corbeille, ouvrir des applications et lancer des commandes sans te demander.\n\nLes dossiers système restent protégés et rien n’est supprimé définitivement. Continuer ?':'Full access: Sparky will be able to modify, move, send to the Recycle Bin, open apps and run commands without asking you.\n\nSystem folders stay protected and nothing is deleted permanently. Continue?',
+ 'Sparky demande ton autorisation':'Sparky asks for your permission','Contenu qui sera écrit':'Content that will be written','Autoriser':'Allow',
+ 'Toujours pour cette conversation':'Always in this chat','Refuser':'Deny','Demande expirée.':'Request expired.','en attente de ton accord':'waiting for your approval',
+ '✓ Autorisé':'✓ Allowed','✓ Autorisé pour toute la conversation':'✓ Allowed for the whole chat','✗ Refusé':'✗ Denied','résultat':'result',
+ 'Lister le dossier':'List folder','Lire le fichier':'Read file','Chercher des fichiers':'Search files','Infos':'Info',"Capture d'écran":'Screenshot',
+ 'Écrire le fichier':'Write file','Créer le dossier':'Create folder','Copier':'Copy','Déplacer / renommer':'Move / rename','Mettre à la corbeille':'Move to Recycle Bin',
+ 'Ouvrir':'Open','Lancer une commande':'Run a command',
  'Thème':'Theme','Auto (comme Windows)':'Auto (follow Windows)','Clair':'Light','Sombre':'Dark',
  // projets
  'Test automatique : ça fonctionne':'Automatic test: it works','Test automatique : erreurs trouvées':'Automatic test: errors found','essai':'attempt',
@@ -1868,7 +1905,7 @@ function loadMermaid(){return mermaidP||(mermaidP=new Promise((ok,ko)=>{const s=
 
 // ---------- conversation state: message numbers (edit / regenerate), versions, setup of the conversation
 let UIDX=-1,TBASE=0,VERS={};
-const CFG0=()=>({assistant:null,web:false,docs:[],system:''});
+const CFG0=()=>({assistant:null,web:false,docs:[],system:'',computer:'off'});
 let CFG=CFG0(),WS={assistants:[],prompts:[],knowledge:[],schedules:[],unread:[]};
 const _open0=open_,_blank0=blank;
 open_=async function(id){if(busy)return;SID=id;setEph(false);log.innerHTML=HELLO;T=null;resetArts();UIDX=-1;try{localStorage.setItem('sparky.sid',id)}catch{}
@@ -2224,6 +2261,48 @@ $('stView').onclick=e=>{if(e.target.id==='stView'||e.target.id==='stVm'){$('stVi
 addEventListener('keydown',e=>{if(e.key==='Escape'&&$('stView').classList.contains('open')){$('stView').classList.remove('open');$('stVm').innerHTML=''}});
 setStMode('image');
 try{if(localStorage.getItem('sparky.studio')==='1')setStudioMode(true)}catch{}
+
+// ==================================================================== computer mode
+const PCL={off:['Désactivé','L’assistant n’accède pas à ton ordinateur'],read:['Lecture seule','Voir les dossiers et fichiers, ne rien modifier'],
+  ask:['Lecture libre, demander pour les changements','Lit librement ; te demande avant d’écrire, déplacer, supprimer, ouvrir ou lancer une commande'],
+  ask_all:['Tout demander','Te demande avant chaque action, même pour lire'],full:['Accès complet','Agit sans demander (dossiers système protégés, corbeille seulement)']};
+const ICPC='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>';
+function pcMenu(b){menuAt(b,m=>{m.append(el('div','hd',tr('Accès à l’ordinateur')));
+  Object.entries(PCL).forEach(([k,[t,d]])=>{const x=mItem(m,(CFG.computer===k?'✓ ':'')+'<span>'+esc(tr(t))+(k==='ask'?' ★':'')+'<small>'+esc(tr(d))+'</small></span>',()=>{
+      if(k==='full'&&!confirm(tr('Accès complet : Sparky pourra modifier, déplacer, mettre à la corbeille, ouvrir des applications et lancer des commandes sans te demander.\n\nLes dossiers système restent protégés et rien n’est supprimé définitivement. Continuer ?')))return;
+      CFG.computer=k;saveCfg()});x.classList.add('lv')})})}
+const _renderTools0=renderTools;
+renderTools=function(){_renderTools0();const t=$('tools');if(!t)return;const lv=CFG.computer||'off';
+  const b=el('button',lv==='off'?'':(lv==='full'?'on pc-full':'on'),ICPC+'<span>'+esc(tr('Ordinateur'))+(lv==='off'?'':' · '+esc(tr(PCL[lv][0].split(',')[0])))+'</span>');
+  b.title=tr('Laisser Sparky consulter et agir sur ton ordinateur (fichiers, dossiers, bureau, applications)');b.onclick=e=>{e.stopPropagation();pcMenu(b)};
+  t.insertBefore(b,t.children[2]||null)};
+const PCIC={read:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  write:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+  danger:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>'};
+const APPR={};
+const _onEvent1=onEvent;
+onEvent=function(e,live){
+  if(e.type==='ctool'){if(!T)newTurn();hideTyping();const d=el('div','pcs '+(e.risk||'read'));
+    d.innerHTML='<div class="r"><span class="ic">'+(PCIC[e.risk]||PCIC.read)+'</span><b>'+esc(tr(e.label))+'</b><span class="sp"></span><span class="st">'+(live?'<span class="spin" style="width:11px;height:11px"></span>':'')+'</span></div>'+(e.summary?'<code>'+esc(e.summary)+'</code>':'');
+    A().append(d);T.pc=d;if(live)showTyping('');down();return}
+  if(e.type==='approve'){if(!T)newTurn();hideTyping();const d=el('div','appr'+(e.risk==='danger'?' danger':''));APPR[e.id]=d;
+    d.innerHTML='<div class="h">'+(PCIC[e.risk]||'')+esc(tr('Sparky demande ton autorisation'))+'</div><div>'+esc(tr(e.label))+'</div>'+(e.summary?'<code>'+esc(e.summary)+'</code>':'')
+      +(e.preview?'<details><summary>'+esc(tr('Contenu qui sera écrit'))+'</summary><code>'+esc(e.preview)+'</code></details>':'');
+    const b=el('div','b'),res=el('div','res');
+    [['once','Autoriser','go'],['always','Toujours pour cette conversation',''],['deny','Refuser','no']].forEach(([k,t,cls])=>{const x=el('button',cls,esc(tr(t)));
+      x.onclick=async()=>{b.querySelectorAll('button').forEach(y=>y.disabled=true);const r=await post('/api/approve',{id:SID,aid:e.id,decision:k});
+        if(!r.ok){res.textContent=tr('Demande expirée.');}};b.append(x)});
+    if(!live){b.querySelectorAll('button').forEach(y=>y.disabled=true);res.textContent=tr('Demande expirée.')}
+    d.append(b,res);A().append(d);if(T.pc)T.pc.querySelector('.st').textContent=tr('en attente de ton accord');down(true);return}
+  if(e.type==='approved'){const d=APPR[e.id];if(d){d.classList.add('done');d.querySelector('.b').remove();
+      d.querySelector('.res').textContent=tr({once:'✓ Autorisé',always:'✓ Autorisé pour toute la conversation',deny:'✗ Refusé'}[e.decision]||'✗ Refusé')}
+    if(live&&e.decision!=='deny')showTyping('');return}
+  if(e.type==='cresult'){const d=T?.pc;if(d){const st=d.querySelector('.st');st.className='st '+(e.ok?'ok':'err');st.textContent=e.ok?'✓':'✗ '+(e.text||'');
+      if(e.ok&&e.image!=null){const i=new Image();i.src=U(e.image);i.onclick=()=>{$('view').firstChild.src=i.src;$('view').style.display='grid'};d.append(i)}
+      else if(e.ok&&e.text){const det=el('details');det.innerHTML='<summary>'+esc(tr('résultat'))+'</summary>';const p=el('pre');p.textContent=e.text;det.append(p);d.append(det)}
+      T.pc=null}
+    if(live)showTyping('réfléchit…');down();return}
+  _onEvent1(e,live)};
 </script>
 </body>
 </html>

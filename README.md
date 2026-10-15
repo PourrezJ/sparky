@@ -51,6 +51,7 @@ everything runs on your own PC. Nothing is sent to the internet unless you turn 
 - 🔊 **Read aloud** — on any answer, offline Piper voices (English, French, German, Spanish, Italian).
 
 ### 🛠️ Tools & automation
+- 💻 **Computer mode** — Sparky can look at and act on your PC: browse folders and the desktop, read and search files (PDF and Office too), take a screenshot, write, copy, move, send to the Recycle Bin, open files and apps, run PowerShell commands. **You choose the security level** for each chat: *Off*, *Read only*, *Read freely & ask before changes* (recommended), *Ask for everything* or *Full access*; actions that need your OK show an **approval card** (Allow / Always in this chat / Deny).
 - 🔌 **MCP tools** — plug any Model Context Protocol server (same config as Claude Desktop: files, GitHub, databases…).
 - ⏰ **Scheduled tasks** — "every morning at 8, summarize the tech news": the answer lands in a new chat.
 - 🔗 **OpenAI-compatible API** — use Sparky's model from Continue, VS Code extensions or scripts at `http://127.0.0.1:7860/v1`. Off by default.
@@ -80,6 +81,7 @@ everything runs on your own PC. Nothing is sent to the internet unless you turn 
 | 🧩 **Code & projects** | artifacts panel with live preview, code, versions, download · multi-file projects (web, Python, Node.js) · automatic test-and-fix loop (headless browser, Python, `npm install` / build / test) · ▶ Run · ZIP download · generated pictures inside projects |
 | 📝 **Markdown** | GFM tables · task lists · LaTeX (KaTeX) · Mermaid diagrams · syntax highlighting · citations · served locally (no CDN) |
 | 🎙️ **Voice** | offline dictation (Whisper large-v3 turbo / base) with live level bars · offline read-aloud (Piper voices: en, fr, de, es, it) |
+| 💻 **Computer mode** | list, read (PDF / Office), search, info, screenshot · write, mkdir, copy, move · Recycle Bin (never a permanent delete) · open files / apps / URLs · PowerShell commands (2 min timeout) · 5 security levels per chat · approval cards (once / always in this chat / deny) · system folders always protected |
 | 🔌 **Tools** | MCP servers over stdio (`command` / `args` / `env`) or Streamable HTTP (`url` / `headers`), Claude Desktop config format |
 | ⏰ **Automation** | scheduled tasks: daily, weekly, every N minutes, once · results filed in a new chat with an unread badge |
 | 🔗 **API** | OpenAI-compatible `/v1/models`, `/v1/chat/completions` (streaming or not), `/v1/embeddings` · bearer key · off by default · local only |
@@ -91,6 +93,7 @@ everything runs on your own PC. Nothing is sent to the internet unless you turn 
 
 | | |
 |---|---|
+| <img src="docs/computer.png" alt="Computer mode with an approval card"><br>💻 **Computer mode** — Sparky reads your files, then asks before writing | <img src="docs/library-video.png" alt="Video models in the library"><br>📦 **Model library** — assistants, images, videos, voice |
 | <img src="docs/studio.png" alt="Studio: videos generated locally"><br>🎬 **Studio** — your images and videos, with their sound | <img src="docs/studio-video.png" alt="Studio video viewer"><br>🎞️ **Video viewer** — balloons over Cappadocia, made on the PC in 2 minutes |
 | <img src="docs/studio-animate.png" alt="Animate a picture"><br>✨ **Image → video** — pick a picture, describe the motion and the sounds | <img src="docs/web-search.png" alt="Web search with citations"><br>🌐 **Web search** — the assistant searches, reads and cites its sources |
 | <img src="docs/knowledge-chat.png" alt="Answers from your documents with citations"><br>📄 **Documents** — answers from your files, with numbered sources | <img src="docs/markdown.png" alt="Tables, formulas and diagrams"><br>📝 **Rich answers** — tables, LaTeX, Mermaid, versions of an answer |
@@ -98,7 +101,7 @@ everything runs on your own PC. Nothing is sent to the internet unless you turn 
 | <img src="docs/prompts.png" alt="Prompt library"><br>⚡ **Prompt library** — type / to insert a saved prompt | <img src="docs/workspace-tools.png" alt="MCP tools"><br>🔌 **Tools (MCP)** — plug any MCP server |
 | <img src="docs/workspace-tasks.png" alt="Scheduled tasks"><br>⏰ **Scheduled tasks** — prompts that run by themselves | <img src="docs/light.png" alt="Light theme"><br>🌗 **Light theme** — or dark, or follow Windows |
 | <img src="docs/image-edit.png" alt="Image generation and editing"><br>🖼️ **Images** — generate, then edit by instruction | <img src="docs/thinking.png" alt="Visible reasoning"><br>🧠 **Thinking** — see how the model reasoned |
-| <img src="docs/library-video.png" alt="Video models in the library"><br>📦 **Model library** — assistants, images, videos, voice | <img src="docs/settings.png" alt="Settings"><br>⚙️ **Settings** — language, theme, system, models, context |
+| <img src="docs/settings.png" alt="Settings"><br>⚙️ **Settings** — language, theme, system, models, context | <img src="docs/library.png" alt="Model library"><br>📦 **All models** — speed, quality and memory for your PC |
 | <img src="docs/welcome.png" alt="Welcome screen with system scan"><br>🩺 **First launch** — system scan and recommended models | <img src="docs/picker.png" alt="Model menu with thinking levels"><br>🔀 **Model menu** — switch models, pick a thinking level |
 
 <p align="center"><img src="docs/demo-artifact.gif" alt="Sparky writes a Breakout game live in the side panel, then runs it" width="800"><br><i>🧩 A Breakout game written live in the side panel, then played.</i></p>
@@ -264,6 +267,20 @@ Everything runs on your machine: conversations, documents, images and models sta
 
 The local API only answers the Sparky page itself: requests from other websites (cross-site or DNS rebinding) are refused, and the projects the assistant writes run on their own origin (port 7861), so their code cannot drive Sparky. The OpenAI-compatible API (`/v1`) is off by default; when on, it requires its key and still only listens on `127.0.0.1`. Web reading refuses private and local addresses.
 
+## 💻 Computer mode and security
+
+Off by default. Pick a level with the **Computer** chip under the message box (it applies to that chat):
+
+| Level | Reading (list, read, search, screenshot) | Changes (write, copy, move, trash) | Open apps · run commands |
+|---|---|---|---|
+| Off | — | — | — |
+| Read only | ✅ | ❌ | ❌ |
+| Read freely & ask before changes ★ | ✅ | 🙋 asks you | 🙋 asks you |
+| Ask for everything | 🙋 asks you | 🙋 asks you | 🙋 asks you |
+| Full access | ✅ | ✅ | ✅ |
+
+Whatever the level: Windows, Program Files, ProgramData and Sparky's own folder can never be modified, a deletion always goes to the **Recycle Bin**, commands stop after 2 minutes, and the model is told that file contents are data, never instructions. "Always in this chat" only lasts until you change the level.
+
 ## 🔗 OpenAI-compatible API
 
 Turn it on in *Workspace > API*, then point any OpenAI client at Sparky's active model:
@@ -318,6 +335,7 @@ app/
   checker.py    automatic project tests (headless browser, Python, Node.js)
   stt.py        offline voice dictation (Whisper)
   tts.py        offline read-aloud (Piper voices through onnxruntime + espeak-ng)
+  computer.py   computer mode: file / app / command tools, security levels, protected folders
   studio.py     Studio: media library, image / video / image-to-video jobs (LTX-2.5, Wan 2.2)
   rag.py        document collections: extraction, chunking, embeddings, search with citations
   web.py        web search and page reading (DuckDuckGo / Bing / SearXNG), private addresses blocked

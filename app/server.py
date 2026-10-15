@@ -386,6 +386,10 @@ def apply_config(s, new):
         s.config["docs"] = [int(x) for x in new["docs"] or []]
     if "web" in new:
         s.config["web"] = bool(new["web"])
+    import computer
+    if new.get("computer") in computer.LEVELS and new["computer"] != s.config.get("computer"):
+        s.config["computer"] = new["computer"]
+        s.config["computer_allow"] = []  # "always allow" choices do not survive a change of level
 
 
 def run_scheduled(prompt, title):
@@ -942,6 +946,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(400, {"error": str(e)})
         self.send(404, {"error": "introuvable"})
 
+    def approve(self, path):  # computer mode: the user's answer to an approval card
+        b = self.body()
+        s = get_session(b.get("id"))
+        ok = bool(s) and s.approve(str(b.get("aid")), b.get("decision"))
+        self.send(200 if ok else 404, {"ok": ok} if ok else {"error": "demande expirée"})
+
     def tts_install(self, path):
         import tts
         tts.install(self.body().get("voice"))
@@ -1152,7 +1162,7 @@ POST = {"/api/new": Handler.new_session, "/api/delete": Handler.delete_session, 
         "/api/model/delete": Handler.model_delete, "/api/settings": Handler.save_settings, "/api/chat": Handler.chat,
         "/api/import": Handler.import_chat, "/api/meta": Handler.chat_meta, "/api/config": Handler.chat_config,
         "/api/version/switch": Handler.version, "/api/redo": Handler.redo, "/api/workspace": Handler.workspace_save,
-        "/api/tts": Handler.tts_speak, "/api/tts/install": Handler.tts_install}
+        "/api/tts": Handler.tts_speak, "/api/tts/install": Handler.tts_install, "/api/approve": Handler.approve}
 POST_PREFIX = [("/api/transcribe", Handler.transcribe), ("/api/bot/", Handler.bot), ("/api/studio/", Handler.studio_post)]
 
 
