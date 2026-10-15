@@ -59,7 +59,7 @@ def _chat_media():
     if key == _chat_cache["key"]:
         return _chat_cache["items"]
     out = []
-    for sid, mt in rows:
+    for sid, _ in rows:
         try:
             st = json.load(open(os.path.join(config.DATA, sid, "session.json"), encoding="utf-8"))
         except (OSError, ValueError):
