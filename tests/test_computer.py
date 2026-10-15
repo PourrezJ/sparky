@@ -102,3 +102,16 @@ def test_agent_user_denies(tmp_path):
     threading.Thread(target=user).start()
     s._on_computer(_T(), {"tool": "list", "path": str(tmp_path)}, evs.append)
     assert "REFUSÉ PAR L'UTILISATEUR" in s.history[-1]["text"]
+
+
+def test_batch_disks_and_info(tmp_path):
+    for n in ("a.txt", "b.txt", "c.png"):
+        (tmp_path / n).write_text(n)
+    out = computer.RUN["move"]({"paths": [str(tmp_path / "a.txt"), str(tmp_path / "b.txt")], "dst": str(tmp_path / "Notes")})
+    assert out.startswith("2/2") and sorted(os.listdir(tmp_path / "Notes")) == ["a.txt", "b.txt"]
+    out = computer.RUN["copy"]({"paths": [str(tmp_path / "c.png"), str(tmp_path / "missing.png")], "dst": str(tmp_path / "Img")})
+    assert out.startswith("1/2") and "✗" in out
+    assert "libres" in computer.RUN["info"]({"path": str(tmp_path)}) and "fichiers" in computer.RUN["info"]({"path": str(tmp_path)})
+    if os.name == "nt":
+        assert "libres sur" in computer.RUN["disks"]({})
+    assert computer.summary("move", {"paths": ["x", "y"], "dst": "z"}).startswith("2 éléments → z")
