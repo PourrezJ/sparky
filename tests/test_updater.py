@@ -71,6 +71,50 @@ def test_zip_install_gets_the_install_command(tmp_path, monkeypatch):
     assert s["available"] and not s["git"] and not s["auto"] and "install.ps1" in s["command"]
 
 
+def test_macos_zip_install_command(monkeypatch):
+    # The platform-specific installation command is chosen when the module is imported.
+    import importlib
+    with monkeypatch.context() as m:
+        m.setattr(updater.sys, "platform", "darwin")
+        importlib.reload(updater)
+        assert updater.REPO == "PourrezJ/sparky"
+        assert updater.INSTALL_CMD.startswith("bash ") and updater.INSTALL_CMD.endswith("install-macos.sh")
+    importlib.reload(updater)
+
+
+def test_posix_restart_relaunches_server_in_a_new_session(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr(config, "ROOT", str(tmp_path / "sparky with spaces"))
+    monkeypatch.setattr(config, "DATA", str(tmp_path / "logs"))
+    (tmp_path / "sparky with spaces").mkdir()
+    calls = []
+    monkeypatch.setattr(updater.subprocess, "Popen", lambda args, **kw: calls.append((args, kw)) or SimpleNamespace(pid=123))
+    monkeypatch.setattr(updater.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(updater.os, "_exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
+    with pytest.raises(SystemExit) as done:
+        updater._restart()
+    assert done.value.code == 0
+    args, kw = calls[0]
+    assert args[:2] == [updater.sys.executable, "-c"]
+    assert args[3] == str(tmp_path / "sparky with spaces")
+    assert "os.execv(sys.executable" in args[2]
+    assert "os.replace(tmp, pidfile)" in args[2]
+    assert args[-1] == str(tmp_path / "sparky with spaces" / "data" / "server.pid")
+    assert (tmp_path / "sparky with spaces" / "data").is_dir()
+    assert kw["start_new_session"] and kw["cwd"] == config.ROOT
+    assert kw["stdout"] == subprocess.DEVNULL and kw["stderr"] == subprocess.DEVNULL
+
+
+def test_macos_version_tracks_github_origin_and_branch(repo, monkeypatch):
+    git(repo, "remote", "add", "origin", "git@github.com:PourrezJ/sparky.git")
+    git(repo, "update-ref", "refs/remotes/origin/mac-port", "HEAD")
+    git(repo, "branch", "--set-upstream-to=origin/mac-port")
+    monkeypatch.setattr(updater.sys, "platform", "darwin")
+    assert updater._version_url() == "https://raw.githubusercontent.com/PourrezJ/sparky/mac-port/VERSION"
+    git(repo, "remote", "set-url", "origin", "https://example.com/attacker/other.git")
+    assert updater._version_url() == updater.REMOTE_VERSION
+
+
 def test_offline_check_is_not_an_error(monkeypatch):
     monkeypatch.setattr(updater, "REMOTE_VERSION", "http://127.0.0.1:9/VERSION")
     updater.check(force=True)

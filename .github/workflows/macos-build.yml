@@ -1,0 +1,39 @@
+name: Build llama.cpp Metal for macOS arm64
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/macos-build.yml"
+      - "install-macos.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  metal:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check installer syntax
+        run: bash -n install-macos.sh start-macos.sh stop-macos.sh
+      - name: Fetch llama.cpp
+        run: git clone --depth 1 https://github.com/ggml-org/llama.cpp.git llama.cpp
+      - name: Compile Apple Silicon Metal llama-server
+        run: |
+          cmake -S llama.cpp -B llama.cpp/build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 -DGGML_METAL=ON -DLLAMA_CURL=OFF
+          cmake --build llama.cpp/build --config Release --target llama-server -j 2
+          file llama.cpp/build/bin/llama-server
+          lipo -archs llama.cpp/build/bin/llama-server | grep -w arm64
+      - name: Package Metal engine
+        run: |
+          tar -czf sparky-llama-metal-macos-arm64.tar.gz -C llama.cpp/build bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sparky-llama-metal-macos-arm64
+          path: sparky-llama-metal-macos-arm64.tar.gz
+          if-no-files-found: error
+          retention-days: 14

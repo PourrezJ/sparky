@@ -4,6 +4,7 @@ import os, threading, time
 import pytest
 
 import computer
+import config
 import harness
 
 
@@ -16,7 +17,10 @@ def test_levels():
 
 
 def test_protected_folders():
-    for p in (os.environ.get("SystemRoot", r"C:\Windows"), os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "x"), "C:\\"):
+    paths = (os.environ.get("SystemRoot", r"C:\Windows"),
+             os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "x"), "C:\\") if os.name == "nt" else (
+             "/", "/usr/bin/example", config.ROOT)
+    for p in paths:
         with pytest.raises(PermissionError):
             computer.check_writable(os.path.abspath(p))
 
@@ -24,6 +28,8 @@ def test_protected_folders():
 def test_places_and_resolve():
     pl = computer.places()
     assert os.path.isabs(pl["desktop"]) and computer.resolve("desktop\\a.txt") == os.path.join(pl["desktop"], "a.txt")
+    if os.name != "nt":
+        assert computer.resolve("documents/sub/a.txt") == os.path.join(pl["documents"], "sub", "a.txt")
 
 
 def test_file_tools(tmp_path):
@@ -112,6 +118,57 @@ def test_batch_disks_and_info(tmp_path):
     out = computer.RUN["copy"]({"paths": [str(tmp_path / "c.png"), str(tmp_path / "missing.png")], "dst": str(tmp_path / "Img")})
     assert out.startswith("1/2") and "✗" in out
     assert "libres" in computer.RUN["info"]({"path": str(tmp_path)}) and "fichiers" in computer.RUN["info"]({"path": str(tmp_path)})
-    if os.name == "nt":
-        assert "libres sur" in computer.RUN["disks"]({})
+    assert "libres sur" in computer.RUN["disks"]({})
     assert computer.summary("move", {"paths": ["x", "y"], "dst": "z"}).startswith("2 éléments → z")
+
+
+def test_macos_trash_preserves_collisions_and_originals(tmp_path, monkeypatch):
+    monkeypatch.setattr(computer.sys, "platform", "darwin")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    home = tmp_path / "home"
+    home.mkdir()
+    first = tmp_path / "one" / "notes.txt"
+    second = tmp_path / "two" / "notes.txt"
+    first.parent.mkdir()
+    second.parent.mkdir()
+    first.write_text("first")
+    second.write_text("second")
+    assert "corbeille" in computer.t_trash(str(first))
+    assert "corbeille" in computer.t_trash(str(second))
+    trash = home / ".Trash"
+    assert not first.exists() and not second.exists()
+    assert sorted(p.read_text() for p in trash.iterdir()) == ["first", "second"]
+    assert len({p.name for p in trash.iterdir()}) == 2
+
+
+def test_macos_open_uses_open_and_commands_use_zsh(tmp_path, monkeypatch):
+    monkeypatch.setattr(computer.sys, "platform", "darwin")
+    calls = []
+
+    def popen(args, **kw):
+        calls.append(("open", args, kw))
+
+    def run(args, **kw):
+        calls.append(("run", args, kw))
+        from types import SimpleNamespace
+        return SimpleNamespace(stdout=b"42", stderr=b"", returncode=0)
+
+    monkeypatch.setattr(computer.subprocess, "Popen", popen)
+    monkeypatch.setattr(computer.subprocess, "run", run)
+    target = tmp_path / "notes.txt"
+    target.write_text("hi")
+    assert computer.t_open(str(target)).startswith("ouvert")
+    computer.t_open("TextEdit")
+    out = computer.t_run("echo 42", str(tmp_path))
+    assert "code de sortie 0" in out and "42" in out
+    assert calls[0][1] == ["open", str(target)]
+    assert calls[1][1] == ["open", "-a", "TextEdit"]
+    assert calls[2][1] == ["/bin/zsh", "-c", "echo 42"]
+    assert computer.needs_approval("ask", "run") == "ask"
+
+
+def test_protected_tree_cannot_be_modified_through_symlink(tmp_path):
+    link = tmp_path / "shortcut"
+    link.symlink_to(config.ROOT, target_is_directory=True)
+    with pytest.raises(PermissionError):
+        computer.check_writable(str(link / "app" / "server.py"))

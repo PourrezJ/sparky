@@ -1,5 +1,5 @@
 """Models already on the PC: what is found, what is ignored, and that Sparky never deletes the user's files."""
-import json, os
+import importlib, json, os
 
 import pytest
 
@@ -83,3 +83,17 @@ def test_unknown_key_is_an_error():
     localscan.state["items"] = []
     with pytest.raises(RuntimeError):
         localscan.use("nope")
+
+
+def test_macos_locations_include_application_support(monkeypatch):
+    with monkeypatch.context() as m:
+        m.setattr(localscan.sys, "platform", "darwin")
+        importlib.reload(localscan)
+        sources = {name: path for path, name in localscan.SOURCES}
+        assert "Library/Application Support" in sources["Jan"]
+        assert "Library/Application Support" in sources["GPT4All"]
+        assert all("AppData" not in path for path, _ in localscan.SOURCES)
+        roots = localscan.default_roots()
+        assert (localscan.HOME, 8) in roots
+        assert all(not path.endswith(":\\") for path, _ in roots)
+    importlib.reload(localscan)

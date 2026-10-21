@@ -4,7 +4,7 @@ on this machine (from the system scan) and indicators (quality, memory, vision, 
 The catalog only offers official or widely used models; "uncensored",
 "abliterated", NSFW, etc. variants are excluded, including from Hugging Face search.
 """
-import json, os, re, subprocess, threading, time, urllib.request
+import json, os, platform, re, subprocess, threading, time, urllib.request
 
 import config
 
@@ -69,8 +69,9 @@ def qwen_image(id, label, quality, desc=""):
 def klein():
     """FLUX.2 Klein 4B: 3 s per image in the benchmark, understands sentences and edits by instruction."""
     try:
-        gpu = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"], capture_output=True,
-                             text=True, timeout=10, creationflags=NOWIN).stdout.lower()
+        gpu = (subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"], capture_output=True,
+                              text=True, timeout=10, creationflags=NOWIN).stdout.lower()
+               if platform.system() != "Darwin" else "")
     except Exception:
         gpu = ""
     # FP4 encoder on Blackwell GPUs (RTX 50, Spark), FP8 elsewhere
@@ -195,7 +196,8 @@ def has_vision(m):
 
 def llm_args(m):
     a = [m["files"][0][2]] + (["--mmproj", m["files"][1][2]] if has_vision(m) else [])
-    if m["id"] == "qwen38" and os.path.exists(MTP):
+    # Metal support for the speculative MTP pipeline has not been verified.
+    if m["id"] == "qwen38" and os.path.exists(MTP) and platform.system() != "Darwin":
         a += ["--spec-type", "draft-mtp", "--spec-draft-model", MTP, "--spec-draft-n-max", "3"]
     return a
 
@@ -209,22 +211,30 @@ def indicators(m, measured=None, sysinfo=None):
         return {"speed": 3, "fit": 2, "tps": 0, "measured": False}
     a = sysinfo["assess"]
     mem, bw, img = a["model_mem_gb"], a["bandwidth"], a["image_gb"] if a["images"] else 0
+    apple = any(g.get("vendor") == "apple" for g in sysinfo["hw"].get("gpus", []))
     if m["kind"] == "llm":
-        mtp = m["id"] == "qwen38" and os.path.exists(MTP)
+        mtp = m["id"] == "qwen38" and os.path.exists(MTP) and not apple
         est = m["ref_tps"] * bw / REF_BW if m.get("ref_tps") else bw / m["active_gb"] * 0.85
+        if apple:
+            est *= 0.75  # CUDA reference throughput is optimistic for Metal
         tps = measured or est * (2.05 if mtp else 1.0)
-        speed = 3 if tps >= 40 else 2 if tps >= 20 else 1
         need = m["size_gb"] + 2.5  # model + context
         fit = 2 if need + img <= mem else 1 if need <= mem else 0
+        speed = 1 if fit == 0 else 3 if tps >= 40 else 2 if tps >= 20 else 1
         return {"speed": speed, "fit": fit, "tps": round(tps), "measured": bool(measured)}
     if m["kind"] in ("voice", "embed"):
-        secs = measured or (m["gpu_secs"] if a["mode"] != "cpu" else m["cpu_secs"])
+        secs = measured or (max(m["gpu_secs"] * 2, m["cpu_secs"] / 3) if apple else
+                            m["gpu_secs"] if a["mode"] != "cpu" else m["cpu_secs"])
         return {"speed": 3 if secs <= 3 else 2 if secs <= 10 else 1, "fit": 2, "secs": round(secs, 1), "measured": bool(measured)}
     if m["kind"] == "video":  # the assistant is paused during a video: the model gets the whole memory (and offloads)
         secs = (measured * 5 + 20) if measured else m["est_secs"] * (230 / max(bw, 60)) ** 0.7  # for 5 s of video
+        if apple and not measured:
+            secs = max(180, secs * 3)  # video workflow has no validated Metal benchmark
         fit = 2 if m["size_gb"] + 4 <= mem else 1 if m["size_gb"] <= mem * 1.6 else 0
         return {"speed": 3 if secs <= 60 else 2 if secs <= 180 else 1, "fit": fit, "secs": round(secs), "measured": bool(measured)}
     secs = measured or m.get("est_secs", 15) * (230 / max(bw, 60)) ** 0.7
+    if apple and not measured:
+        secs = max(20, secs * 3)  # CUDA image timings do not extrapolate to MPS
     fit = 2 if m["size_gb"] + 6 <= mem else 1 if m["size_gb"] <= mem + 2 else 0
     return {"speed": 3 if secs <= 12 else 2 if secs <= 30 else 1, "fit": fit, "secs": round(secs), "measured": bool(measured)}
 

@@ -5,13 +5,14 @@ the VERSION file of the GitHub repository; when it is newer, the UI offers the u
   - git install, no local change: "git pull --ff-only" then Sparky restarts by itself;
   - local changes, or an install from the ZIP: the UI explains why and gives the command to run.
 """
-import os, re, shutil, subprocess, sys, threading, time, urllib.request
+import os, re, shlex, shutil, subprocess, sys, threading, time, urllib.request
 
 import config
 
-REPO = "anisayari/sparky"
+REPO = "PourrezJ/sparky" if sys.platform == "darwin" else "anisayari/sparky"
 REMOTE_VERSION = os.environ.get("SPARKY_VERSION_URL") or f"https://raw.githubusercontent.com/{REPO}/main/VERSION"
-INSTALL_CMD = f"irm https://raw.githubusercontent.com/{REPO}/main/install.ps1 | iex"
+INSTALL_CMD = (f"bash {shlex.quote(os.path.join(config.ROOT, 'install-macos.sh'))}" if sys.platform == "darwin"
+               else f"irm https://raw.githubusercontent.com/{REPO}/main/install.ps1 | iex")
 NOWIN = config.NOWIN
 CHECK_EVERY = 3600
 
@@ -48,12 +49,31 @@ def local_changes():
     return [l[3:].strip() for l in out.splitlines() if len(l) > 3] if code == 0 else []
 
 
+def _version_url():
+    """On macOS follow the checked-out GitHub fork/branch; allow an explicit URL override."""
+    if sys.platform != "darwin" or os.environ.get("SPARKY_VERSION_URL") or not is_git():
+        return REMOTE_VERSION
+    code, upstream = _git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}", timeout=10)
+    remote, branch = "origin", "main"
+    if code == 0 and "/" in upstream:
+        remote, branch = upstream.strip().split("/", 1)
+    code, url = _git("remote", "get-url", remote, timeout=10)
+    if code != 0:
+        return REMOTE_VERSION
+    # Only an unambiguous GitHub repository and validated branch can form a raw content URL.
+    m = re.fullmatch(r"(?:https://github\.com/|ssh://git@github\.com/|git@github\.com:)"
+                     r"([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?", url.strip())
+    if not m or not re.fullmatch(r"[A-Za-z0-9._/-]+", branch) or ".." in branch or "//" in branch:
+        return REMOTE_VERSION
+    return f"https://raw.githubusercontent.com/{m[1]}/{m[2]}/{branch}/VERSION"
+
+
 def check(force=False):
     if not force and time.time() - state["checked"] < CHECK_EVERY:
         return
     state["checked"] = time.time()
     try:
-        req = urllib.request.Request(REMOTE_VERSION + f"?t={int(time.time())}", headers={"Cache-Control": "no-cache"})
+        req = urllib.request.Request(_version_url() + f"?t={int(time.time())}", headers={"Cache-Control": "no-cache"})
         with urllib.request.urlopen(req, timeout=10) as r:
             state.update(latest=r.read().decode().strip(), error="")
     except Exception as e:  # offline: Sparky works without Internet, so this is not an error for the user
@@ -81,7 +101,30 @@ def status():
 def _restart():
     """Starts a new Sparky once this process has released its port, then exits."""
     if os.name != "nt":
-        return
+        os.makedirs(config.DATA, exist_ok=True)
+        os.makedirs(os.path.join(config.ROOT, "data"), exist_ok=True)
+        # A fresh session lets the helper survive Sparky's exit; exec replaces it with the new server.
+        # Command arguments are passed separately, so paths containing spaces or quotes are safe.
+        script = ("import os, sys, time\n"
+                  "root, out, err, port, pidfile = sys.argv[1:]\n"
+                  "time.sleep(2)\n"
+                  "os.chdir(root)\n"
+                  "with open(out, 'ab') as stdout, open(err, 'ab') as stderr:\n"
+                  "    os.dup2(stdout.fileno(), 1)\n"
+                  "    os.dup2(stderr.fileno(), 2)\n"
+                  "    tmp = pidfile + '.new'\n"
+                  "    with open(tmp, 'w') as f:\n"
+                  "        f.write(str(os.getpid()))\n"
+                  "    os.replace(tmp, pidfile)\n"
+                  "    os.execv(sys.executable, [sys.executable, 'app/server.py', '--port', port])\n")
+        subprocess.Popen([sys.executable, "-c", script, config.ROOT,
+                          os.path.join(config.DATA, "server.log"), os.path.join(config.DATA, "server.err.log"),
+                          str(config.APP_PORT), os.path.join(config.ROOT, "data", "server.pid")],
+                         cwd=config.ROOT, start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         close_fds=True)
+        time.sleep(0.5)
+        os._exit(0)
     q = lambda p: p.replace("'", "''")
     script = (f"Start-Sleep -Seconds 2; Start-Process '{q(sys.executable)}' -ArgumentList 'app\\server.py','--port','{config.APP_PORT}' "
               f"-WorkingDirectory '{q(config.ROOT)}' -WindowStyle Hidden "

@@ -1,9 +1,9 @@
-"""Offline read-aloud: Piper voices (ONNX, CPU) run with onnxruntime, phonemized by espeak-ng (espeakng-loader).
+"""Offline read-aloud: Piper voices (ONNX, CPU) run with onnxruntime, phonemized by espeak-ng.
 
 The piper-tts package has no Windows ARM64 wheel, so its small pipeline is reproduced here:
 text -> espeak-ng IPA phonemes -> phoneme ids (voice .onnx.json) -> VITS model -> 16-bit WAV.
 """
-import ctypes, io, json, os, re, threading, unicodedata, urllib.request, wave
+import ctypes, ctypes.util, io, json, os, re, sys, threading, unicodedata, urllib.request, wave
 
 import numpy as np
 
@@ -51,9 +51,13 @@ def ready(vid):
 
 def installed():
     try:
-        import onnxruntime, espeakng_loader  # noqa: F401
-        return True
+        import onnxruntime  # noqa: F401
     except ImportError:
+        return False
+    try:
+        _espeak_location()
+        return True
+    except (ImportError, OSError):
         return False
 
 
@@ -166,11 +170,36 @@ def pick_voice(lang=None, voice_id=None):
 
 # --- espeak-ng phonemization (same calls as piper-phonemize) ---
 
+def _espeak_location():
+    """Use bundled espeak-ng or a system installation, such as Homebrew on macOS."""
+    try:
+        import espeakng_loader
+        return espeakng_loader.get_library_path(), espeakng_loader.get_data_path()
+    except (ImportError, OSError):
+        pass
+
+    candidates = [ctypes.util.find_library("espeak-ng")]
+    if sys.platform == "darwin":
+        candidates += ["/opt/homebrew/opt/espeak-ng/lib/libespeak-ng.dylib",
+                       "/usr/local/opt/espeak-ng/lib/libespeak-ng.dylib"]
+    for path in filter(None, candidates):
+        try:
+            ctypes.CDLL(path)
+        except OSError:
+            continue
+        data = None
+        if sys.platform == "darwin" and os.path.isabs(path):
+            candidate = os.path.join(os.path.dirname(os.path.dirname(path)), "share", "espeak-ng-data")
+            data = candidate if os.path.isdir(candidate) else None
+        return path, data
+    raise ImportError("espeak-ng is unavailable (install espeakng-loader or Homebrew espeak-ng)")
+
+
 def _espeak_lib():
     global _espeak
     if _espeak is None:
-        import espeakng_loader
-        lib = ctypes.cdll.LoadLibrary(espeakng_loader.get_library_path())
+        library, data = _espeak_location()
+        lib = ctypes.cdll.LoadLibrary(library)
         lib.espeak_Initialize.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
         lib.espeak_SetVoiceByName.argtypes = [ctypes.c_char_p]
         lib.espeak_TextToPhonemes.restype = ctypes.c_char_p
@@ -180,7 +209,7 @@ def _espeak_lib():
             lib.espeak_TextToPhonemesWithTerminator.restype = ctypes.c_char_p
             lib.espeak_TextToPhonemesWithTerminator.argtypes = [ctypes.POINTER(ctypes.c_void_p), ctypes.c_int,
                                                                 ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
-        if lib.espeak_Initialize(2, 0, espeakng_loader.get_data_path().encode(), 0) < 0:  # 2 = synchronous
+        if lib.espeak_Initialize(2, 0, os.fsencode(data) if data else None, 0) < 0:  # 2 = synchronous
             raise RuntimeError("espeak-ng initialisation failed")
         _espeak = lib
     return _espeak

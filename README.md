@@ -7,6 +7,10 @@
 
 <h1 align="center">Sparky</h1>
 
+> **macOS fork:** Experimental Apple Silicon (arm64) support with llama.cpp Metal,
+> `install-macos.sh`, and macOS CI is documented in
+> **[README-macOS.md](README-macOS.md)**. The original Windows installer is unchanged.
+
 <p align="center"><b>Your private AI assistant. 100% local.</b><br>
 Chat, see images, generate pictures and videos with sound, build apps, ask your documents, dictate and listen —<br>
 everything runs on your own PC. Nothing is sent to the internet unless you turn it on.</p>

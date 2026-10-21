@@ -7,10 +7,10 @@ Levels (Session.config["computer"]):
   ask      reads run freely, every change (write, move, trash, open, command) asks the user first  [recommended]
   ask_all  every action asks the user first, reads included
   full     everything runs without asking
-Whatever the level: system folders cannot be modified, deletion goes to the Recycle Bin (never permanent),
+Whatever the level: system folders cannot be modified, deletion goes to the system Trash (never permanent),
 commands time out, outputs are cut. File contents and command outputs are data for the model, not instructions.
 """
-import ctypes, fnmatch, os, shutil, subprocess, time
+import ctypes, fnmatch, os, shlex, shutil, subprocess, sys, time, uuid
 
 import config
 
@@ -32,9 +32,9 @@ TOOLS = {
     "mkdir": ("write", 'create a folder. {"path":"..."}'),
     "copy": ("write", 'copy files or folders. {"src":"...","dst":"..."} or several at once: {"paths":["...","..."],"dst":"folder"}'),
     "move": ("write", 'move or rename. {"src":"...","dst":"..."} or several at once: {"paths":["...","..."],"dst":"folder"}'),
-    "trash": ("danger", 'send to the Recycle Bin. {"path":"..."} or {"paths":["...","..."]}'),
-    "open": ("danger", 'open a file, folder, URL or app with Windows. {"path":"..."}'),
-    "run": ("danger", 'run a PowerShell command and get its output. {"command":"...","cwd":"optional folder"}'),
+    "trash": ("danger", 'send to the Trash / Recycle Bin. {"path":"..."} or {"paths":["...","..."]}'),
+    "open": ("danger", 'open a file, folder, URL or app. {"path":"..."}'),
+    "run": ("danger", 'run a shell command and get its output. {"command":"...","cwd":"optional folder"}'),
 }
 LABELS = {"list": "Lister le dossier", "read": "Lire le fichier", "search": "Chercher des fichiers", "info": "Infos", "disks": "Disques",
           "screenshot": "Capture d'écran", "write": "Écrire le fichier", "mkdir": "Créer le dossier", "copy": "Copier",
@@ -57,6 +57,8 @@ def needs_approval(level, tool):
 
 # ---------------------------------------------------------------- paths
 def _known(csidl, fallback):
+    if os.name != "nt":
+        return os.path.join(os.path.expanduser("~"), fallback)
     try:
         buf = ctypes.create_unicode_buffer(260)
         if ctypes.windll.shell32.SHGetFolderPathW(None, csidl, None, 0, buf) == 0 and buf.value:
@@ -79,7 +81,9 @@ def resolve(p):
     p = str(p or "").strip().strip('"')
     if not p:
         raise ValueError("chemin manquant")
-    head, _, rest = p.replace("/", "\\").partition("\\")
+    sep = "\\" if os.name == "nt" else "/"
+    p = p.replace("/", "\\") if os.name == "nt" else p.replace("\\", "/")
+    head, _, rest = p.partition(sep)
     pl = places()
     if head.lower() in pl:
         p = os.path.join(pl[head.lower()], rest)
@@ -87,16 +91,23 @@ def resolve(p):
 
 
 def _protected():
-    roots = [os.environ.get(k) for k in ("SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData")]
-    return [os.path.normcase(os.path.abspath(r)) for r in roots if r] + [os.path.normcase(config.ROOT)]
+    if os.name == "nt":
+        roots = [os.environ.get(k) for k in ("SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData")]
+    elif sys.platform == "darwin":
+        roots = ["/System", "/Library", "/Applications", "/usr", "/bin", "/sbin"]
+    else:
+        roots = ["/usr", "/bin", "/sbin", "/etc", "/boot"]
+    return [os.path.normcase(os.path.realpath(r)) for r in [*roots, config.ROOT] if r]
 
 
 def check_writable(path):
-    n = os.path.normcase(path)
+    n = os.path.normcase(os.path.realpath(path))
+    if os.path.dirname(n) == n:
+        raise PermissionError("la racine d'un disque ne peut pas être modifiée")
     for r in _protected():
-        if n == r or n.startswith(r + os.sep):
+        if n == r or n.startswith(r.rstrip(os.sep) + os.sep):
             raise PermissionError(f"dossier protégé ({r}) : Sparky ne le modifie jamais")
-    if len(os.path.splitdrive(n)[1].strip("\\")) == 0:
+    if os.name == "nt" and len(os.path.splitdrive(n)[1].strip("\\")) == 0:
         raise PermissionError("la racine d'un disque ne peut pas être modifiée")
 
 
@@ -121,7 +132,7 @@ def t_list(path):
     rows.sort()
     out = [f"{p} ({len(rows)} éléments)"]
     for _, _, name, isdir, size, mt in rows[:MAX_LIST]:
-        out.append(("📁 " + name + "\\") if isdir else f"📄 {name}  ·  {_size(size)}  ·  {time.strftime('%Y-%m-%d %H:%M', time.localtime(mt))}")
+        out.append(("📁 " + name + os.sep) if isdir else f"📄 {name}  ·  {_size(size)}  ·  {time.strftime('%Y-%m-%d %H:%M', time.localtime(mt))}")
     if len(rows) > MAX_LIST:
         out.append(f"… et {len(rows) - MAX_LIST} autres")
     return "\n".join(out)
@@ -210,6 +221,17 @@ def t_info(path):
 
 def t_disks():
     out = []
+    if os.name != "nt":
+        roots = ["/"]
+        if sys.platform == "darwin" and os.path.isdir("/Volumes"):
+            roots.extend(os.path.join("/Volumes", n) for n in os.listdir("/Volumes"))
+        for root in roots:
+            try:
+                du = shutil.disk_usage(root)
+                out.append(f"{root} {_size(du.free)} libres sur {_size(du.total)} ({du.used * 100 // max(1, du.total)} % utilisé)")
+            except OSError:
+                continue
+        return "\n".join(out) or "aucun disque lisible"
     for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
         root = letter + ":\\"
         if os.path.exists(root):
@@ -223,7 +245,7 @@ def t_disks():
 
 def t_screenshot():
     from PIL import ImageGrab
-    im = ImageGrab.grab(all_screens=True).convert("RGB")
+    im = ImageGrab.grab(**({"all_screens": True} if os.name == "nt" else {})).convert("RGB")
     im.thumbnail((1600, 1600))
     return im
 
@@ -272,7 +294,26 @@ def t_move(src, dst):
 
 
 def recycle(path):
-    """Recycle Bin (SHFileOperationW with FOF_ALLOWUNDO): never a permanent delete."""
+    """Move to the OS Trash without permanently deleting a file."""
+    if sys.platform == "darwin":
+        trash = os.path.join(os.path.expanduser("~"), ".Trash")
+        os.makedirs(trash, mode=0o700, exist_ok=True)
+        if os.path.samefile(path, trash) or os.path.realpath(trash).startswith(os.path.realpath(path) + os.sep):
+            raise PermissionError("impossible de mettre la corbeille elle-même à la corbeille")
+        dest = os.path.join(trash, os.path.basename(path))
+        if os.path.lexists(dest):
+            stem, ext = os.path.splitext(os.path.basename(path))
+            dest = os.path.join(trash, f"{stem}-{uuid.uuid4().hex}{ext}")
+        # Rename is atomic and never overwrites the source by copying/deleting across volumes.
+        try:
+            os.rename(path, dest)
+        except OSError as e:
+            if e.errno == 18:  # EXDEV: keep the source untouched
+                raise OSError("impossible de déplacer ce volume vers ~/.Trash") from e
+            raise
+        return
+    if os.name != "nt":
+        raise OSError("mise à la corbeille indisponible sur ce système")
     class SHFILEOPSTRUCTW(ctypes.Structure):
         _fields_ = [("hwnd", ctypes.c_void_p), ("wFunc", ctypes.c_uint), ("pFrom", ctypes.c_wchar_p), ("pTo", ctypes.c_wchar_p),
                     ("fFlags", ctypes.c_ushort), ("fAnyOperationsAborted", ctypes.c_bool), ("hNameMappings", ctypes.c_void_p),
@@ -295,9 +336,19 @@ def t_trash(path):
 
 def t_open(path):
     target = str(path or "").strip()
+    if not target:
+        raise ValueError("chemin manquant")
     if not target.lower().startswith(("http://", "https://", "mailto:")):
         target = resolve(target) if os.path.exists(resolve(target)) else target  # app name (notepad, calc...) or path
-    os.startfile(target)
+    if sys.platform == "darwin":
+        if not os.path.exists(target) and "://" not in target and not target.startswith("mailto:") and os.sep not in target:
+            subprocess.Popen(["open", "-a", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.Popen(["open", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif os.name == "nt":
+        os.startfile(target)
+    else:
+        subprocess.Popen(["xdg-open", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return f"ouvert : {target}"
 
 
@@ -332,16 +383,18 @@ def batch(fn, a, with_dst=True):
 def t_run(command, cwd=None):
     if isinstance(command, list):  # models sometimes send ["powershell", "Get-ChildItem", ...]
         parts = [str(x) for x in command]
-        if parts and parts[0].lower() in ("powershell", "powershell.exe", "pwsh", "cmd", "cmd.exe"):
+        if os.name == "nt" and parts and parts[0].lower() in ("powershell", "powershell.exe", "pwsh", "cmd", "cmd.exe"):
             parts = parts[1:]
-        command = " ".join(parts)
+        command = " ".join(parts) if os.name == "nt" else shlex.join(parts)
     if not str(command or "").strip():
         raise ValueError("commande vide")
     wd = resolve(cwd) if cwd else places()["home"]
     t0 = time.time()
     try:
-        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
-                            "[Console]::OutputEncoding=[Text.Encoding]::UTF8;" + str(command)],
+        cmd = (["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                "[Console]::OutputEncoding=[Text.Encoding]::UTF8;" + str(command)] if os.name == "nt"
+               else ["/bin/zsh" if sys.platform == "darwin" else "/bin/sh", "-c", str(command)])
+        r = subprocess.run(cmd,
                            cwd=wd, capture_output=True, timeout=CMD_TIMEOUT, creationflags=config.NOWIN)
         out = (r.stdout + (b"\n" + r.stderr if r.stderr else b"")).decode("utf-8", "replace").strip()
         code = r.returncode
@@ -385,7 +438,7 @@ def prompt(level, vision):
             "ask": "Reading runs immediately; every change, command or opening is shown to the user, who approves it first.",
             "ask_all": "Every action is shown to the user, who approves it first.",
             "full": "Actions run immediately without asking: be careful, act only on what the user asked."}[level]
-    return ("COMPUTER MODE: you can act on the user's Windows PC with the action \"computer\": "
+    return (f"COMPUTER MODE: you can act on the user's {'Mac' if sys.platform == 'darwin' else 'Windows PC' if os.name == 'nt' else 'computer'} with the action \"computer\": "
             "{\"action\":\"computer\",\"args\":{\"tool\":\"<tool>\", ...tool args}}. One tool per answer; you get the result, then continue "
             "or reply. " + rule + "\nTools:\n" + "\n".join(tools) +
             f"\nUser folders: home {pl['home']}, desktop {pl['desktop']}, documents {pl['documents']}, downloads {pl['downloads']} "

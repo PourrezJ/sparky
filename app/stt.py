@@ -10,14 +10,31 @@ _lock = threading.Lock()
 IDLE = 600
 
 
+def _device(torch):
+    if torch.cuda.is_available():
+        return "cuda:0", torch.float16
+    mps = getattr(getattr(torch, "backends", None), "mps", None)
+    if mps is not None and mps.is_available():
+        return "mps", torch.float16
+    return "cpu", torch.float32
+
+
 def _load(mid):
     import torch
     from transformers import pipeline
     m = catalog.BY_ID[mid]
-    gpu = torch.cuda.is_available()
-    _st["pipe"] = pipeline("automatic-speech-recognition", model=m["dir"],
-                           dtype=torch.float16 if gpu else torch.float32, device="cuda:0" if gpu else "cpu")
+    device, dtype = _device(torch)
+    try:
+        pipe = pipeline("automatic-speech-recognition", model=m["dir"], dtype=dtype, device=device)
+    except (RuntimeError, ValueError, NotImplementedError):
+        if device != "mps":
+            raise
+        # A missing Metal kernel must not break dictation on the Mac.
+        pipe = pipeline("automatic-speech-recognition", model=m["dir"], dtype=torch.float32, device="cpu")
+        device = "cpu"
+    _st["pipe"] = pipe
     _st["id"] = mid
+    _st["device"] = device
 
 
 def _unload_when_idle():
@@ -25,10 +42,14 @@ def _unload_when_idle():
         time.sleep(60)
         with _lock:
             if _st["pipe"] is not None and time.time() - _st["used"] > IDLE:
-                _st.update(pipe=None, id=None)
+                device = _st.get("device", "cpu")
+                _st.update(pipe=None, id=None, device=None)
                 try:
                     import torch
-                    torch.cuda.empty_cache()
+                    if device == "cuda:0":
+                        torch.cuda.empty_cache()
+                    elif device == "mps" and hasattr(torch, "mps"):
+                        torch.mps.empty_cache()
                 except Exception:
                     pass
 
@@ -83,7 +104,18 @@ def transcribe_array(audio, mid, language=None):
         _st["used"] = time.time()
         kw = {"task": "transcribe"} | ({"language": language} if language else {})
         # beyond 30 s, Whisper chains the windows itself (long, timestamped transcription)
-        out = _st["pipe"]({"raw": audio, "sampling_rate": 16000}, generate_kwargs=kw,
-                          return_timestamps=len(audio) > 30 * 16000)
+        params = {"generate_kwargs": kw, "return_timestamps": len(audio) > 30 * 16000}
+        try:
+            out = _st["pipe"]({"raw": audio, "sampling_rate": 16000}, **params)
+        except (RuntimeError, NotImplementedError):
+            if _st.get("device") != "mps":
+                raise
+            # Some Whisper ops are not implemented in PyTorch MPS releases.
+            import torch
+            from transformers import pipeline
+            _st["pipe"] = pipeline("automatic-speech-recognition", model=catalog.BY_ID[mid]["dir"],
+                                   dtype=torch.float32, device="cpu")
+            _st["device"] = "cpu"
+            out = _st["pipe"]({"raw": audio, "sampling_rate": 16000}, **params)
         _st["used"] = time.time()
     return clean(out["text"])

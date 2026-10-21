@@ -4,7 +4,7 @@ Usage: python app\\server.py [--port 7860] [--no-llm]   (or start.bat)
 The assistant model, image model and settings are chosen in the UI (Settings).
 Generated projects are served on the next port (preview origin): they cannot reach the API.
 """
-import argparse, base64, io, json, os, re, shutil, subprocess, sys, threading, time, urllib.request
+import argparse, base64, io, json, os, platform, re, shutil, subprocess, sys, threading, time, urllib.request
 import http.server, socketserver
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -127,6 +127,12 @@ CTX_MIN, CTX_MAX = 4096, 262144
 
 def auto_ctx(m):
     """Largest comfortable context for this model: depends on the memory left once the model is loaded."""
+    if platform.system() == "Darwin":
+        # Apple Silicon shares RAM with its GPU: do not treat all physical RAM as
+        # available for the KV cache, or macOS will swap heavily.
+        budget = syscheck.current()["assess"]["model_mem_gb"]
+        spare = max(0, budget - m.get("size_gb", 0))
+        return 65536 if spare >= 16 else 32768 if spare >= 10 else 16384 if spare >= 5 else 8192
     spare = psutil.virtual_memory().total / 2**30 - m.get("size_gb", 0)
     return 65536 if spare >= 12 else 32768 if spare >= 6 else 16384
 
@@ -142,7 +148,8 @@ def llm_ctx(m):
 
 def launch_llm(m):
     if not os.path.exists(config.LLAMA_SERVER):
-        raise RuntimeError("llama-server introuvable : " + config.LLAMA_SERVER + " (relance install.ps1)")
+        installer = "install-macos.sh" if platform.system() == "Darwin" else "install.ps1"
+        raise RuntimeError("llama-server introuvable : " + config.LLAMA_SERVER + f" (relance {installer})")
     args = catalog.llm_args(m)
     gpu = syscheck.current()["assess"]["mode"] != "cpu"
     ctx = llm_state["ctx"] = llm_ctx(m)

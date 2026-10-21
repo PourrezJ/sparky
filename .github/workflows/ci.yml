@@ -19,6 +19,7 @@ jobs:
           - {os: windows-latest, python: "3.10"}   # oldest Python the installer accepts
           - {os: windows-latest, python: "3.13"}   # newest
           - {os: ubuntu-latest, python: "3.12"}
+          - {os: macos-15, python: "3.12"}          # macOS portable Python code
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,6 +35,12 @@ jobs:
         run: python -m ruff check app tests
       - name: Tests
         run: python -m pytest
+
+      - name: Check macOS shell scripts
+        if: runner.os == 'macOS'
+        run: |
+          bash -n install-macos.sh start-macos.sh stop-macos.sh
+          bash install-macos.sh --help
 
   powershell:
     name: Installer scripts

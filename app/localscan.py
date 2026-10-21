@@ -5,7 +5,7 @@ Assistants (GGUF) are used in place: Sparky never moves nor deletes them. Image 
 recognised when their files are the ones of the catalog; they are hard-linked (no extra space on
 the same disk) or copied into Sparky's ComfyUI.
 """
-import hashlib, json, os, re, shutil, string, threading, time
+import hashlib, json, os, re, shutil, string, sys, threading, time
 
 import catalog
 import config
@@ -13,6 +13,7 @@ import config
 HOME = os.path.expanduser("~")
 LOCAL = os.environ.get("LOCALAPPDATA", os.path.join(HOME, "AppData", "Local"))
 ROAMING = os.environ.get("APPDATA", os.path.join(HOME, "AppData", "Roaming"))
+MAC_SUPPORT = os.path.join(HOME, "Library", "Application Support")
 OLLAMA = os.environ.get("OLLAMA_MODELS") or os.path.join(HOME, ".ollama", "models")
 HF_HUB = os.path.join(os.environ.get("HF_HOME") or os.path.join(HOME, ".cache", "huggingface"), "hub")
 SOURCES = [  # (folder, name shown in the UI): searched deeply
@@ -24,6 +25,17 @@ SOURCES = [  # (folder, name shown in the UI): searched deeply
     (os.path.join(LOCAL, "nomic.ai", "GPT4All"), "GPT4All"),
     (os.path.join(LOCAL, "llama.cpp"), "llama.cpp"),
 ]
+if sys.platform == "darwin":
+    SOURCES = [
+        (os.path.join(HOME, ".lmstudio", "models"), "LM Studio"),
+        (os.path.join(MAC_SUPPORT, "LM Studio", "models"), "LM Studio"),
+        (os.path.join(MAC_SUPPORT, "LM Studio"), "LM Studio"),
+        (HF_HUB, "Hugging Face"),
+        (os.path.join(MAC_SUPPORT, "Jan", "models"), "Jan"),
+        (os.path.join(MAC_SUPPORT, "Jan"), "Jan"),
+        (os.path.join(MAC_SUPPORT, "nomic.ai", "GPT4All"), "GPT4All"),
+        (os.path.join(MAC_SUPPORT, "llama.cpp"), "llama.cpp"),
+    ]
 SKIP = {"windows", "$recycle.bin", "system volume information", "program files", "program files (x86)", "programdata",
         "appdata", "node_modules", ".git", "__pycache__", "site-packages", "$windows.~bt", "$winreagent", "recovery",
         "windowsapps", "steamapps", ".cache", ".ollama", ".lmstudio", "onedrivetemp", "msocache", "perflogs"}
@@ -46,7 +58,8 @@ def _gguf(path):
 def _source(path):
     p = os.path.normcase(path)
     for d, name in SOURCES:
-        if p.startswith(os.path.normcase(d)):
+        base = os.path.normcase(d)
+        if p == base or p.startswith(base + os.sep):
             return name
     if "comfyui" in p:
         return "ComfyUI"
@@ -152,11 +165,20 @@ def _local_drive(letter):
 
 def default_roots():
     """(folder, depth) searched: known apps deeply, the user folder, other drives, then the system drive root."""
-    sysroot = os.path.splitdrive(HOME)[0] + "\\"
     roots = [(d, 9) for d, _ in SOURCES] + [(HOME, 8)]
-    roots += [(c + ":\\", 6) for c in string.ascii_uppercase
-              if os.path.normcase(c + ":\\") != os.path.normcase(sysroot) and _local_drive(c)] if os.name == "nt" else []
-    return roots + ([(sysroot, 3)] if os.name == "nt" else [])
+    if sys.platform == "darwin":
+        # /Volumes lists external disks; do not descend into the protected system volume.
+        try:
+            roots += [(e.path, 6) for e in os.scandir("/Volumes")
+                      if e.is_dir() and not e.is_symlink() and not os.path.samefile(e.path, "/")]
+        except OSError:
+            pass
+    if os.name == "nt":
+        sysroot = os.path.splitdrive(HOME)[0] + "\\"
+        roots += [(c + ":\\", 6) for c in string.ascii_uppercase
+                  if os.path.normcase(c + ":\\") != os.path.normcase(sysroot) and _local_drive(c)]
+        roots.append((sysroot, 3))
+    return roots
 
 
 def find(roots, ollama=None):

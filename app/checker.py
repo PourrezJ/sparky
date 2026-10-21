@@ -17,7 +17,8 @@ NOWIN = config.NOWIN
 
 def node_dir():
     local = os.path.join(config.RUNTIME, "node")
-    if os.path.exists(os.path.join(local, "node.exe")):
+    executable = "node.exe" if os.name == "nt" else "node"
+    if os.path.isfile(os.path.join(local, executable)):
         return local
     n = shutil.which("node")
     return os.path.dirname(n) if n else None
@@ -78,11 +79,19 @@ def kill_tree(pid):
 
 
 def browser_path():
+    if sys.platform == "darwin":
+        for apps in ("/Applications", os.path.expanduser("~/Applications")):
+            for bundle, binary in (("Google Chrome", "Google Chrome"), ("Microsoft Edge", "Microsoft Edge"),
+                                   ("Chromium", "Chromium"), ("Brave Browser", "Brave Browser")):
+                path = os.path.join(apps, bundle + ".app", "Contents", "MacOS", binary)
+                if os.path.isfile(path):
+                    return path
     for p in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
               r"C:\Program Files\Google\Chrome\Application\chrome.exe", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"):
         if os.path.exists(p):
             return p
-    return shutil.which("msedge") or shutil.which("chrome")
+    return next((p for name in ("msedge", "chrome", "google-chrome", "chromium", "chromium-browser", "brave")
+                 if (p := shutil.which(name))), None)
 
 
 LAYOUT = r"""(()=>{const W=innerWidth,H=innerHeight,out=[],src=i=>i.getAttribute('src')||'image';
@@ -224,8 +233,12 @@ def check(session, pid, project, app_port):
     t0 = time.time()
     problems, out = [], []
     nd = node_dir()
-    node = os.path.join(nd, "node.exe") if nd and os.path.exists(os.path.join(nd, "node.exe")) else (shutil.which("node") if nd else None)
-    npm = os.path.join(nd, "npm.cmd") if nd else None
+    node_name = "node.exe" if os.name == "nt" else "node"
+    npm_name = "npm.cmd" if os.name == "nt" else "npm"
+    node = (os.path.join(nd, node_name) if nd and os.path.isfile(os.path.join(nd, node_name))
+            else shutil.which("node") if nd else None)
+    npm = (os.path.join(nd, npm_name) if nd and os.path.isfile(os.path.join(nd, npm_name))
+           else shutil.which("npm"))
     kind = "web" if entry.endswith((".html", ".htm")) else "python" if entry.endswith(".py") else \
         "node" if entry.endswith((".js", ".mjs", ".cjs")) or "package.json" in files else "other"
 
@@ -268,7 +281,8 @@ def check(session, pid, project, app_port):
             except ValueError as e:
                 problems.append(f"package.json is not valid JSON: {e}")
         if pkg.get("dependencies") or pkg.get("devDependencies"):
-            c, o, timed = run([npm, "install", "--no-audit", "--no-fund", "--loglevel=error"], root, 240)
+            c, o, timed = (run([npm, "install", "--no-audit", "--no-fund", "--loglevel=error"], root, 240)
+                           if npm else (127, "npm is not installed", False))
             out.append("$ npm install\n" + o)
             if c or timed:
                 problems.append("npm install failed:\n" + o.strip()[-2000:])
@@ -277,7 +291,7 @@ def check(session, pid, project, app_port):
         if not problems:
             for s in ("build", "test"):
                 if s in scripts and "no test specified" not in scripts[s]:
-                    c, o, timed = run([npm, "run", s], root, 120)
+                    c, o, timed = run([npm, "run", s], root, 120) if npm else (127, "npm is not installed", False)
                     out.append(f"$ npm run {s}\n" + o)
                     if c or timed:
                         problems.append(f"npm run {s} failed:\n" + o.strip()[-2500:])
