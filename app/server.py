@@ -152,9 +152,17 @@ def launch_llm(m):
         raise RuntimeError("llama-server introuvable : " + config.LLAMA_SERVER + f" (relance {installer})")
     args = catalog.llm_args(m)
     gpu = syscheck.current()["assess"]["mode"] != "cpu"
+    # A Mac Intel installation explicitly selects 0 (CPU-only), while
+    # Apple Silicon defaults to 99; Windows keeps automatic GPU selection.
+    layers = config._cfg.get("gpu_layers")
+    try:
+        layers = max(0, int(layers)) if layers is not None else (99 if gpu else 0)
+    except (TypeError, ValueError):
+        layers = 99 if gpu else 0
     ctx = llm_state["ctx"] = llm_ctx(m)
-    _spawn([config.LLAMA_SERVER, "-m", args[0], "--port", str(config.LLM_PORT), "-ngl", "99" if gpu else "0",
-            "-c", str(ctx), "--jinja", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0", *args[1:]], LLM_LOG)
+    _spawn([config.LLAMA_SERVER, "-m", args[0], "--port", str(config.LLM_PORT), "-ngl", str(layers),
+            "-c", str(ctx), "--jinja", "-fa", "on" if layers else "off", "-ctk", "q8_0", "-ctv", "q8_0",
+            *args[1:]], LLM_LOG)
     print("Assistant en cours de demarrage :", m["label"], f"(contexte {ctx})")
 
 

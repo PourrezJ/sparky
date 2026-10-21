@@ -20,6 +20,7 @@ jobs:
           - {os: windows-latest, python: "3.13"}   # newest
           - {os: ubuntu-latest, python: "3.12"}
           - {os: macos-15, python: "3.12"}          # macOS portable Python code
+          - {os: macos-15-intel, python: "3.12"}    # Intel Mac / Hackintosh target
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

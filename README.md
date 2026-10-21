@@ -7,7 +7,7 @@
 
 <h1 align="center">Sparky</h1>
 
-> **macOS fork:** Experimental Apple Silicon (arm64) support with llama.cpp Metal,
+> **macOS fork:** Experimental Apple Silicon (arm64, Metal) and Intel (x86_64, CPU) support,
 > `install-macos.sh`, and macOS CI is documented in
 > **[README-macOS.md](README-macOS.md)**. The original Windows installer is unchanged.
 

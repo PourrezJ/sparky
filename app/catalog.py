@@ -131,6 +131,10 @@ def voice(id, label, quality, repo, size_gb, gpu_secs, cpu_secs, desc=""):
 # speeds (ref_tps) and qualities: local RTX Spark benchmark (Oct. 2026), published GPQA Diamond
 U = "unsloth/"
 CATALOG = [
+    llm("qwen3508", "Qwen3.5 0.8B", 2, U + "Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf", "mmproj-F16.gguf", 0.5,
+        ref_tps=110, desc="Très léger pour les ordinateurs Intel avec peu de RAM."),
+    llm("qwen352", "Qwen3.5 2B", 3, U + "Qwen3.5-2B-GGUF", "Qwen3.5-2B-Q4_K_M.gguf", "mmproj-F16.gguf", 1.3,
+        ref_tps=75, desc="Compact, adapté aux portables Intel avec inférence CPU."),
     llm("qwen38", "Qwen3.8 27B", 5, U + "Qwen3.8-27B-GGUF", "Qwen3.8-27B-UD-Q4_K_M.gguf", "mmproj-F16.gguf", 16.2,
         ref_tps=16, desc="Le plus intelligent (GPQA 89) et le meilleur en code ; 2x plus rapide avec MTP."),
     llm("qwen35moe", "Qwen3.5 35B A3B", 5, U + "Qwen3.5-35B-A3B-GGUF", "Qwen3.5-35B-A3B-Q4_K_M.gguf", "mmproj-F16.gguf", 21.3,

@@ -1,0 +1,40 @@
+name: Build llama.cpp CPU for macOS Intel x86_64
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/macos-intel-build.yml"
+      - "install-macos.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-intel:
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify macOS scripts
+        run: |
+          bash -n install-macos.sh start-macos.sh stop-macos.sh
+          test "$(uname -m)" = x86_64
+      - name: Fetch llama.cpp
+        run: git clone --depth 1 https://github.com/ggml-org/llama.cpp.git llama.cpp
+      - name: Compile portable Intel CPU llama-server
+        run: |
+          cmake -S llama.cpp -B llama.cpp/build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=x86_64 -DGGML_METAL=OFF -DGGML_NATIVE=OFF -DLLAMA_CURL=OFF
+          cmake --build llama.cpp/build --config Release --target llama-server -j 2
+          file llama.cpp/build/bin/llama-server
+          lipo -archs llama.cpp/build/bin/llama-server | grep -w x86_64
+      - name: Package Intel CPU engine
+        run: tar -czf sparky-llama-cpu-macos-intel-x86_64.tar.gz -C llama.cpp/build bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sparky-llama-cpu-macos-intel-x86_64
+          path: sparky-llama-cpu-macos-intel-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 14

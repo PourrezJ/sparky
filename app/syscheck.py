@@ -63,7 +63,8 @@ def detect():
     import psutil
     ram = psutil.virtual_memory().total / 2**30
     apple_silicon = platform.system() == "Darwin" and platform.machine().lower() in ("arm64", "aarch64")
-    cpu = (_mac_chip() if apple_silicon else "") or _ps("(Get-CimInstance Win32_Processor | Select -First 1).Name") or platform.processor() or "?"
+    mac = platform.system() == "Darwin"
+    cpu = (_mac_chip() if mac else "") or _ps("(Get-CimInstance Win32_Processor | Select -First 1).Name") or platform.processor() or "?"
     gpus = []
     if apple_silicon:
         # Apple GPUs share system RAM: vram_gb describes the addressable pool,
@@ -80,6 +81,17 @@ def detect():
         for n in filter(None, _ps("(Get-CimInstance Win32_VideoController).Name").splitlines()):
             if "nvidia" not in n.lower() and "basic" not in n.lower():
                 gpus.append({"name": n.strip(), "vram_gb": 0, "driver": "", "vendor": "other"})
+    if mac and not apple_silicon:
+        # Show Intel GPU hardware, but do not assume its Metal drivers are stable
+        # on a patched macOS Hackintosh. CPU inference is the safe default.
+        try:
+            display = json.loads(_run(["system_profiler", "SPDisplaysDataType", "-json"], timeout=20))
+            for item in display.get("SPDisplaysDataType", []):
+                label = item.get("sppci_model") or item.get("_name")
+                if label:
+                    gpus.append({"name": label, "vram_gb": 0, "driver": "", "vendor": "other"})
+        except (ValueError, TypeError, AttributeError):
+            pass
     os.makedirs(config.LLM_DIR, exist_ok=True)
     disk = shutil.disk_usage(config.LLM_DIR).free / 2**30
     return {"os": f"{platform.system()} {platform.release()}", "arch": platform.machine(), "cpu": cpu.strip(),
@@ -104,7 +116,11 @@ def assess(hw):
     elif g:
         mode, mem = "gpu", g["vram_gb"] - 1.0
     else:
-        mode, mem = "cpu", max(0.0, hw["ram_gb"] - 8.0)
+        if str(hw.get("os", "")).startswith("Darwin"):
+            reserve = min(8.0, max(3.0, hw["ram_gb"] * 0.40))
+            mode, mem = "cpu", max(0.0, hw["ram_gb"] - reserve)
+        else:
+            mode, mem = "cpu", max(0.0, hw["ram_gb"] - 8.0)
     bw = _apple_bandwidth(name) if apple else next((b for k, b in BANDWIDTH if k in name), None) if g else None
     if bw is None:
         bw = (max(150, g["vram_gb"] * 25) if g else 40)
@@ -127,7 +143,11 @@ def recommend(sysinfo):
     import catalog
     out, notes = {}, []
     apple = any(g.get("vendor") == "apple" for g in sysinfo["hw"]["gpus"])
+    intel_mac = str(sysinfo["hw"].get("os", "")).startswith("Darwin") and not apple
     llms = [m for m in catalog.CATALOG if m["kind"] == "llm" and not m.get("custom")]
+    if intel_mac:
+        # Small laptops should not default to huge, impractically slow CPU models.
+        llms = [m for m in llms if m["size_gb"] <= 3.5]
     ind = {m["id"]: catalog.indicators(m, sysinfo=sysinfo) for m in llms}
     for need_fit, need_speed in ((2, 2), (1, 2), (2, 1), (1, 1)):
         ok = [m for m in llms if ind[m["id"]]["fit"] >= need_fit and ind[m["id"]]["speed"] >= need_speed]
@@ -151,11 +171,14 @@ def recommend(sysinfo):
         out["image"] = pick["id"] if pick else None
     elif apple:
         notes.append("Mémoire disponible insuffisante pour recommander la génération d'images sur ce Mac.")
+    elif intel_mac:
+        notes.append("Mac Intel : génération d'images non recommandée sans GPU accéléré.")
     else:
         notes.append("Pas de GPU NVIDIA compatible : la génération d'images serait très lente, elle n'est pas recommandée.")
     out["voice"] = "whisper-turbo" if a["mode"] != "cpu" and (not apple or a["model_mem_gb"] >= 8) else "whisper-base"
     if a["mode"] == "cpu":
-        notes.append("Sans GPU NVIDIA, l'assistant tourne sur le processeur : choisis un petit modèle.")
+        notes.append("Mac Intel : modèle local sur le processeur, sans Metal par défaut." if intel_mac
+                     else "Sans GPU NVIDIA, l'assistant tourne sur le processeur : choisis un petit modèle.")
     elif apple:
         notes.append("Sur Mac, la génération d'images nécessite ComfyUI avec PyTorch MPS et peut être plus lente que sur NVIDIA.")
     need = sum(catalog.BY_ID[i]["size_gb"] for i in out.values() if i)
