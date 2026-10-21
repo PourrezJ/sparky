@@ -85,6 +85,7 @@ def test_unknown_key_is_an_error():
         localscan.use("nope")
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Mac root discovery requires POSIX drive semantics")
 def test_macos_locations_include_application_support(monkeypatch):
     with monkeypatch.context() as m:
         m.setattr(localscan.sys, "platform", "darwin")
