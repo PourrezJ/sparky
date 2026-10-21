@@ -1,8 +1,10 @@
 """Portable speech backend selection without requiring access to a Mac."""
 import sys
+import os
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 import stt
 import tts
@@ -49,6 +51,7 @@ def test_whisper_falls_back_if_mps_inference_fails(monkeypatch):
     assert stt._st["device"] == "cpu"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Homebrew paths use POSIX macOS semantics")
 def test_homebrew_espeak_ng_location_fallback(monkeypatch):
     # Ensure the bundled Python loader is unavailable in this test.
     monkeypatch.setitem(sys.modules, "espeakng_loader", None)

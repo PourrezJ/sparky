@@ -3,7 +3,13 @@ import json
 import os
 from types import SimpleNamespace
 
+import pytest
+
 import checker
+
+# Simulating sys.platform does not change os.name, pathlib or the Windows
+# subprocess implementation. Run the actual POSIX behavior on Linux/macOS.
+pytestmark = pytest.mark.skipif(os.name == "nt", reason="macOS/POSIX paths require a POSIX test host")
 
 
 def test_macos_bundled_node_and_npm_are_both_used(tmp_path, monkeypatch):

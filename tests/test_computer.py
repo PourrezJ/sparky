@@ -122,6 +122,7 @@ def test_batch_disks_and_info(tmp_path):
     assert computer.summary("move", {"paths": ["x", "y"], "dst": "z"}).startswith("2 éléments → z")
 
 
+@pytest.mark.skipif(os.name == "nt", reason="macOS Trash test requires POSIX path semantics")
 def test_macos_trash_preserves_collisions_and_originals(tmp_path, monkeypatch):
     monkeypatch.setattr(computer.sys, "platform", "darwin")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -141,6 +142,7 @@ def test_macos_trash_preserves_collisions_and_originals(tmp_path, monkeypatch):
     assert len({p.name for p in trash.iterdir()}) == 2
 
 
+@pytest.mark.skipif(os.name == "nt", reason="macOS command test requires POSIX subprocess semantics")
 def test_macos_open_uses_open_and_commands_use_zsh(tmp_path, monkeypatch):
     monkeypatch.setattr(computer.sys, "platform", "darwin")
     calls = []

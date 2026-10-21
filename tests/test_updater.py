@@ -68,9 +68,11 @@ def test_zip_install_gets_the_install_command(tmp_path, monkeypatch):
     (tmp_path / "VERSION").write_text("1.0.0")
     monkeypatch.setitem(updater.state, "latest", "1.1.0")
     s = updater.status()
-    assert s["available"] and not s["git"] and not s["auto"] and "install.ps1" in s["command"]
+    installer = "install-macos.sh" if updater.sys.platform == "darwin" else "install.ps1"
+    assert s["available"] and not s["git"] and not s["auto"] and installer in s["command"]
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Mac install command requires POSIX paths")
 def test_macos_zip_install_command(monkeypatch):
     # The platform-specific installation command is chosen when the module is imported.
     import importlib
@@ -82,6 +84,7 @@ def test_macos_zip_install_command(monkeypatch):
     importlib.reload(updater)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX process restart cannot run on Windows")
 def test_posix_restart_relaunches_server_in_a_new_session(tmp_path, monkeypatch):
     from types import SimpleNamespace
     monkeypatch.setattr(config, "ROOT", str(tmp_path / "sparky with spaces"))
@@ -105,6 +108,7 @@ def test_posix_restart_relaunches_server_in_a_new_session(tmp_path, monkeypatch)
     assert kw["stdout"] == subprocess.DEVNULL and kw["stderr"] == subprocess.DEVNULL
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Mac version discovery requires POSIX platform simulation")
 def test_macos_version_tracks_github_origin_and_branch(repo, monkeypatch):
     git(repo, "remote", "add", "origin", "git@github.com:PourrezJ/sparky.git")
     git(repo, "update-ref", "refs/remotes/origin/mac-port", "HEAD")
@@ -116,6 +120,8 @@ def test_macos_version_tracks_github_origin_and_branch(repo, monkeypatch):
 
 
 def test_offline_check_is_not_an_error(monkeypatch):
-    monkeypatch.setattr(updater, "REMOTE_VERSION", "http://127.0.0.1:9/VERSION")
+    # The macOS fork dynamically resolves the version URL from Git remotes:
+    # mock that resolved URL rather than the module's static fallback.
+    monkeypatch.setattr(updater, "_version_url", lambda: "http://127.0.0.1:9/VERSION")
     updater.check(force=True)
     assert updater.state["error"]

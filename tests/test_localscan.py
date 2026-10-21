@@ -90,8 +90,8 @@ def test_macos_locations_include_application_support(monkeypatch):
         m.setattr(localscan.sys, "platform", "darwin")
         importlib.reload(localscan)
         sources = {name: path for path, name in localscan.SOURCES}
-        assert "Library/Application Support" in sources["Jan"]
-        assert "Library/Application Support" in sources["GPT4All"]
+        assert os.path.join("Library", "Application Support") in sources["Jan"]
+        assert os.path.join("Library", "Application Support") in sources["GPT4All"]
         assert all("AppData" not in path for path, _ in localscan.SOURCES)
         roots = localscan.default_roots()
         assert (localscan.HOME, 8) in roots
